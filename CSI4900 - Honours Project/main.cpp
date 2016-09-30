@@ -121,9 +121,9 @@ glm::vec3 interpolate(GLfloat isolevel, glm::vec3 p1, glm::vec3 p2, GLfloat valp
 	p.y = p1.y + mu * (p2.y - p1.y);
 	p.z = p1.z + mu * (p2.z - p1.z);
 
-	return(p);
+	//return(p);
 
-	//return (p1+p2)/2.0f;
+	return (p1+p2)/2.0f;
 }
 
 void march(glm::vec3 center) {
@@ -331,7 +331,7 @@ void march(glm::vec3 center) {
 
 			centroid /= (GLfloat)crossedges.size();
 
-			glBegin(GL_TRIANGLES); //USE GL_TRIANGLES or GL_LINE_LOOP
+			glBegin(GL_LINE_LOOP); //USE GL_TRIANGLES or GL_LINE_LOOP
 
 			for (int i = 0; i < triangle.size(); i++) {
 
@@ -402,9 +402,9 @@ void marchingCubes() {
 	
 
 	int size = 6;
-	for (int i = -0; i < size; i++)
-		for (int j = -0; j < size; j++)
-			for (int k = -0; k < size; k++) {
+	for (int i = -size; i < size; i++)
+		for (int j = -size; j < size; j++)
+			for (int k = -size; k < size; k++) {
 				
 				glm::vec3 center = (GLfloat)(i)*d[0] + (GLfloat)(j)* d[1] + (GLfloat)(k)* d[2];
 				
@@ -463,7 +463,7 @@ void display(void) {
 	marchingCubes();
 
 
-	glutWireSphere(10.0f,20,20);
+	//glutWireSphere(10.0f,20,20);
 	//glutSolidSphere(15.0f, 20, 20);
 
 	// swap buffers

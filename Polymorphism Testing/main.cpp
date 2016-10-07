@@ -11,11 +11,7 @@ void recursive_depth(int depth, SimplePolyhedra p, int *lincomb, int bound) {
 
 	if (depth == 0) {
 
-		//perform lincomb*p.directionvectors
-		for (int i = 0; i < p._numdirectionvectors; ++i) {
-			cout << lincomb[i] << " ";
-		}
-		cout << endl;
+		//march
 
 	}
 	else {

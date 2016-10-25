@@ -106,7 +106,7 @@ void updateCameraVectors() {
 }
 
 /********************************/
-int currentHash = 0b00000000000001;
+int currentHash = 107;
 
 
 glm::vec3 interpolate(GLfloat isolevel, glm::vec3 p1, glm::vec3 p2, GLfloat valp1, GLfloat valp2) {
@@ -128,9 +128,11 @@ glm::vec3 interpolate(GLfloat isolevel, glm::vec3 p1, glm::vec3 p2, GLfloat valp
 }
 
 void march(glm::vec3 center) {
+	//cout << "############  START MARCH ############" << endl;
 	//Check to ensure I have correct centers
 	//cout << center.x << " " << center.y << " "  << center.z << endl;
 	/*
+	int numverts = 8;
 	glm::vec3 vertices[] = { glm::vec3(-1.0f,-1.0f,-1.0f) + center,
 								glm::vec3(-1.0f,-1.0f,1.0f) + center,
 								glm::vec3(1.0f,-1.0f,1.0f) + center,
@@ -139,85 +141,11 @@ void march(glm::vec3 center) {
 								glm::vec3(-1.0f,1.0f,1.0f) + center,
 								glm::vec3(1.0f,1.0f,1.0f) + center,
 								glm::vec3(1.0f,1.0f,-1.0f) + center
-	};*/
-
-
-
-
-	int numverts = 14;
-	vec3 *vertices = new vec3[numverts]{
-		vec3(0.0f,-2.0f,0.0f),
-
-		vec3(-1.0f,-1.0f,-1.0f),
-		vec3(-1.0f,-1.0f,1.0f),
-		vec3(1.0f,-1.0f,1.0f),
-		vec3(1.0f,-1.0f,-1.0f),
-
-		vec3(-2.0f,0.0f,0.0f),
-		vec3(0.0f,0.0f,2.0f),
-		vec3(2.0f,0.0f,0.0f),
-		vec3(0.0f,0.0f,-2.0f),
-
-		vec3(-1.0f,1.0f,-1.0f),
-		vec3(-1.0f,1.0f,1.0f),
-		vec3(1.0f,1.0f,1.0f),
-		vec3(1.0f,1.0f,-1.0f),
-
-		vec3(0.0f,2.0f,0.0f)
-
 	};
 
-
-	int numedges = 24;
-	int *edges = new int[numverts] {
-			0b00000000011110,
-			0b00000100100001,
-			0b00000001100001,
-			0b00000011000001,
-			0b00000110000001,
-			0b00011000000110,
-			0b00110000001100,
-			0b01100000011000,
-			0b01001000010010,
-			0b10000100100000,
-			0b10000001100000,
-			0b10000011000000,
-			0b10000110000000,
-			0b01111000000000,
-	};
-
-
-	int numfaces = 12;
-	int *faces = new int[numverts] {
-			0b00000001001101,
-			0b00000010011001,
-			0b00000100000111,
-			0b00000000101101,
-			0b00100011001000,
-			0b01000110010000,
-			0b00001100100010,
-			0b00010001100100,
-			0b10110010000000,
-			0b11100001000000,
-			0b11001100000000,
-			0b10011000100000
-	};
-
-
-
-
-	GLfloat isolevel = 100.0f;
-	int vertHash = 0; //This is an  integer to track the vertices contained in the isosurface
 	
-	for (int i = 0; i < numverts; i++) {
-		//If vertex is within the isosurface
-		if (glm::dot(vertices[i], vertices[i]) <= isolevel) {
-			vertHash = vertHash | 1 << i;
-		}
-	}
-	
-	/*
 	//Cube edges
+	int numedges = 12;
 	int edges[] = {
 						0b00011010,
 						0b00100101,
@@ -231,6 +159,7 @@ void march(glm::vec3 center) {
 	
 
 	//Cube faces
+	int numfaces = 6;
 	int faces[] = {
 						0b00001111,
 						0b00110011,
@@ -240,12 +169,91 @@ void march(glm::vec3 center) {
 						0b11110000
 
 	};
-	
 	*/
-	vertHash = currentHash;
+	
+	const int numverts = 14;
+	vec3 *vertices = new vec3[numverts]{
+		vec3( 0.0f, 2.0f, 0.0f),
+
+		vec3( 1.0f, 1.0f, 1.0f),
+		vec3( 1.0f, 1.0f,-1.0f),
+		vec3(-1.0f, 1.0f,-1.0f),
+		vec3(-1.0f, 1.0f, 1.0f),
+
+		vec3( 2.0f, 0.0f, 0.0f),
+		vec3( 0.0f, 0.0f,-2.0f),
+		vec3(-2.0f, 0.0f, 0.0f),
+		vec3( 0.0f, 0.0f, 2.0f),
+
+		vec3( 1.0f,-1.0f, 1.0f),
+		vec3( 1.0f,-1.0f,-1.0f),
+		vec3(-1.0f,-1.0f,-1.0f),
+		vec3(-1.0f,-1.0f, 1.0f),
+
+		vec3( 0.0f,-2.0f, 0.0f)
+
+	};
+	
+
+	const int numedges = 24;
+	int *edges = new int[numverts] {
+			0b00000000011110,
+			
+			0b00000100100001,
+			0b00000001100001,
+			0b00000011000001,
+			0b00000110000001,
+			
+			0b00011000000110,
+			0b00110000001100,
+			0b01100000011000,
+			0b01001000010010,
+			
+			0b10000100100000,
+			0b10000001100000,
+			0b10000011000000,
+			0b10000110000000,
+			
+			0b01111000000000
+	};
+	
+	const int numfaces = 12;
+	int *faces = new int[numfaces] {
+			0b00000000100111,
+			0b00000001001101,
+			0b00000010011001,
+			0b00000100010011,
+
+			0b00001100100010,
+			0b00010001100100,
+			0b00100011001000,
+			0b01000110010000,
+
+			0b10011000100000,
+			0b10110001000000,
+			0b11100010000000,
+			0b11001100000000
+	};
+	
+
+
+	GLfloat isolevel = 100.0f;
+	int vertHash = 0; //This is an  integer to track the vertices contained in the isosurface
+	
+	for (int i = 0; i < numverts; i++) {
+		//If vertex is within the isosurface
+		if (glm::dot(vertices[i], vertices[i]) <= isolevel) {
+			vertHash = vertHash | 1 << i;
+		}
+	}
+	
+	
+	
+	
+	vertHash = currentHash % (int) pow(2, numverts);
 
 	//Do the following when the cube is neither fully in or out of the sphere
-	if (vertHash != 0b00000000000000 && vertHash != 0x11111111111111) {
+	if (vertHash != 0 && vertHash != 0x3FFF) {
 		//cout << bitset<8>(vertHash) << endl;
 
 
@@ -259,19 +267,19 @@ void march(glm::vec3 center) {
 		for (int i = 0; i < numverts; i++) {
 			
 			if ((vertHash & 1<<i) != 0) {
-				//cout << "\t*" << bitset<8>(vertHash & (1 << i)) << "*" << (vertHash & (1 << i)) << endl;
+				//cout << "\t*" << bitset<numverts>(vertHash & (1 << i)) << "*" << (vertHash & (1 << i)) << endl;
 				planes.push_back((edges[i] & vertHash) | (1<<i)); //each vertice that is contained make a list of its neighbours
 
 			}
 		}
 
-		/*
+		
 		for (int i = 0; i < planes.size(); i++) {
 
-			cout << "\t" << bitset<8>(planes[i]) << endl;
+			//cout << "\t" << bitset<((size_t) (numverts))>(planes[i]) << endl;
 		}
-		cout << "--------" << endl;
-		*/
+		//cout << "--------" << endl;
+		
 		while (!bubbled) {
 			vector<int> mergedPlanes = vector<int>();
 			
@@ -287,11 +295,11 @@ void march(glm::vec3 center) {
 				for (std::vector<int>::iterator it = mergedPlanes.begin(); it != mergedPlanes.end(); ++it) {
 					int test = (add & *it);
 					if ((add & *it) != 0) {
-						//cout << "\t" << bitset<8>(*it) << "*" << endl;
+					//	cout << "\t" << bitset<numverts>(*it) << "*" << endl;
 						*it = add | *it;
 						shared = true;
 						break;
-						//cout << *it << endl;
+					//	cout << *it << endl;
 					}
 				}
 
@@ -307,12 +315,12 @@ void march(glm::vec3 center) {
 			planes = mergedPlanes;
 		}
 
-		/*
+		
 		for (int i = 0; i < planes.size(); i++) {
 
-			cout << "\t" << bitset<8>(planes[i]) <<endl;
+		//	cout << "\t" << bitset<numverts>(planes[i]) <<endl;
 		}
-		*/
+		
 		
 
 
@@ -329,13 +337,13 @@ void march(glm::vec3 center) {
 					int edgeHash = ~*it & edges[i];
 
 
-					//cout << "\t" << bitset<8>(~vertHash) << " & " << bitset<8>(edges[i]) << " = " << bitset<8>((~vertHash) & (edges[i])) << endl;
+					//cout << "\t" << bitset<numverts>(~vertHash) << " & " << bitset<numverts>(edges[i]) << " = " << bitset<numverts>((~vertHash) & (edges[i])) << endl;
 
 					for (int e = 0; e < numverts; e++) {
 						//Check the edges with one vertice in and one vertice out in the cube
 						if (edgeHash >> e & 1) {
 							
-
+						//	cout << "Push edge: " << bitset<numverts>(1 << i | 1 << e) << endl;
 							
 							crossedges.push_back(1<<i | 1<<e);
 
@@ -344,12 +352,11 @@ void march(glm::vec3 center) {
 					}
 				}
 
-				//cout << endl;
 			}
 			
 			//for each edge find a pair of edges sharing a face (only need one direction)
 			vector<std::pair<int,int>> triangle = vector<pair<int,int>>();
-
+			//cout << "Number of crossedges: " << crossedges.size() << endl;
 			for (int i = 0; i < crossedges.size() - 1; i++) {
 				for (int j = i + 1; j < crossedges.size(); j++) {
 
@@ -359,7 +366,9 @@ void march(glm::vec3 center) {
 						int tf = crossedges[i] | crossedges[j];
 						if ((faces[f] | tf) == faces[f]) {
 							//They are on the same face
+						//	cout << bitset<numverts>(crossedges[i]) << " c " << bitset<numverts>(crossedges[j]) << endl;
 							triangle.push_back(std::make_pair(crossedges[i], crossedges[j]));
+							break;
 						}
 
 					}
@@ -367,7 +376,7 @@ void march(glm::vec3 center) {
 				}
 
 			}
-
+			///new push
 
 			glm::vec3 centroid = glm::vec3(0.0f);
 
@@ -387,6 +396,7 @@ void march(glm::vec3 center) {
 					else {
 						if ((crossedges[i] & 1<<v) != 0) {
 							b = vertices[v];
+							break;
 						}
 
 					}
@@ -398,9 +408,9 @@ void march(glm::vec3 center) {
 
 			centroid /= (GLfloat)crossedges.size();
 
-			glBegin(GL_LINE_LOOP); //USE GL_TRIANGLES or GL_LINE_LOOP
+			glBegin(GL_TRIANGLES); //USE GL_TRIANGLES or GL_LINE_LOOP
 
-			for (int i = 0; i < triangle.size(); i++) {
+			for (int i = 0; i < triangle.size(); ++i) {
 
 				glVertex3fv(glm::value_ptr(centroid));
 				
@@ -408,7 +418,8 @@ void march(glm::vec3 center) {
 				glm::vec3 b[2] = { glm::vec3(0.0f) , glm::vec3(0.0f) };
 
 				bool secondpair[2] = { false, false };
-				for (int v = 0; v < numverts; v++) {
+			//	cout << "--------------------------" << endl;
+				for (int v = 0; v < numverts; ++v) {
 					
 					if (!secondpair[0]) {
 						if ((triangle[i].first & 1 << v) != 0) {
@@ -419,6 +430,9 @@ void march(glm::vec3 center) {
 					else {
 						if ((triangle[i].first & 1 << v) != 0) {
 							b[0] = vertices[v];
+
+
+				//			cout << "pair 1: " << a[0].x << " " << a[0].y << " " << a[0].z << " and " << b[0].x << " " << b[0].y << " " << b[0].z << endl;
 						}
 					}
 					
@@ -432,14 +446,21 @@ void march(glm::vec3 center) {
 					else {
 						if ((triangle[i].second & 1 << v) != 0) {
 							b[1] = vertices[v];
+
+					//		cout << "pair 2: " << a[1].x << " " << a[1].y << " " << a[1].z << " and " << b[1].x << " " << b[1].y << " " << b[1].z << endl;
+
 						}
 					}
 					
+					
 				}
-				
+			//	cout << "----------------------" << endl;
+			//	cout << "Edge " << i << endl;
 				glm::vec3 interPair[] = { interpolate(isolevel, a[0], b[0], glm::dot(a[0],a[0]), glm::dot(b[0],b[0])),
 										  interpolate(isolevel, a[1], b[1], glm::dot(a[1],a[1]), glm::dot(b[1],b[1])) };
 				
+
+				//cout << interPair[0].x << " " << interPair[0].y << " " << interPair[0].z << " and " << interPair[1].x << " " << interPair[1].y << " " << interPair[1].z << endl;
 
 				glVertex3fv(glm::value_ptr(interPair[0]));
 				glVertex3fv(glm::value_ptr(interPair[1]));
@@ -457,7 +478,7 @@ void march(glm::vec3 center) {
 	
 
 
-
+//	cout << "############# END MARCH #############" << endl;
 }
 
 void marchingCubes() {
@@ -468,10 +489,10 @@ void marchingCubes() {
 	
 	
 
-	int size = 1;
-	for (int i = -0; i < size; i++)
-		for (int j = -0; j < size; j++)
-			for (int k = -0; k < size; k++) {
+	int size = 6;
+	for (int i = -size; i < size; i++)
+		for (int j = -size; j < size; j++)
+			for (int k = -size; k < size; k++) {
 				
 				glm::vec3 center = (GLfloat)(i)*d[0] + (GLfloat)(j)* d[1] + (GLfloat)(k)* d[2];
 				
@@ -543,7 +564,7 @@ void drawShape() {
 
 
 	int _numfaces = 12;
-	int *_faces = new int[_numverts] {
+	int *_faces = new int[_numfaces] {
 			0b00000001001101,
 			0b00000010011001,
 			0b00000100000111,
@@ -609,9 +630,10 @@ void display(void) {
 		Decide when to choose isosurface to be rendered
 	*/
 
-	marchingCubes();
+	//marchingCubes();
+	
 	drawShape();
-
+	march(glm::vec3(0.0f, 0.0f, 0.0f));
 
 
 	//glutWireSphere(10.0f,20,20);
@@ -653,7 +675,7 @@ void keyboardFunc(unsigned char _key, int _x, int _y) {
 		break;
 	case 'i':
 	case 'I':
-		currentHash = (currentHash + 1) % 0xFF;
+		currentHash = (currentHash + 1);
 		cout << "CurrentHash: " << currentHash << " (" << bitset<14>(currentHash) << ")" << endl;
 	default:
 

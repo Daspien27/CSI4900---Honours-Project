@@ -12,27 +12,31 @@ using namespace glm;
 class SimplePolyhedra
 {
 
-public:
+protected:
 	//Vertices
-	int _numverts;
+	const int _numverts;
 	vec3 *_vertices;
 
 	//Edge List
-	int _numedges;
+	const int _numedges;
 	int *_edges;
 
 	//Faces
-	int _numfaces;
+	const int _numfaces;
 	int *_faces;
 
 	//Direction Vectors
-	int _numdirectionvectors;
+	const int _numdirectionvectors;
 	vec3 *_directionvectors;
 
 public:
-	SimplePolyhedra()
-	{
+	SimplePolyhedra() : _numverts(0), _numedges(0), _numfaces(0), _numdirectionvectors(0){
 
+
+	}
+
+	SimplePolyhedra(int nverts, int nedges, int nfaces, int ndirectionv) : _numverts(nverts),_numedges(nedges), _numfaces(nfaces), _numdirectionvectors(ndirectionv){
+			
 	}
 
 
@@ -59,9 +63,11 @@ public:
 class Cube : public SimplePolyhedra
 {
 protected:
-
+	
 public:
-	Cube();
+	Cube() : SimplePolyhedra(8,12,6,3){
+
+	}
 
 	~Cube()
 	{
@@ -77,7 +83,9 @@ class RhombicDodecahedron : public SimplePolyhedra
 protected:
 
 public:
-	RhombicDodecahedron();
+	RhombicDodecahedron() : SimplePolyhedra(14, 26, 12, 6) {
+
+	}
 
 	~RhombicDodecahedron()
 	{

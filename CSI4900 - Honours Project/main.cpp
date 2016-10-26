@@ -10,7 +10,7 @@
 #include <GL/glew.h>
 #include <GL/glut.h>
 #include <stack>
-
+#include <fstream>
 // glm types
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
@@ -21,7 +21,7 @@
 #include <glm/gtx/rotate_vector.hpp>
 
 #include "shader.h"
-
+#include "Polyhedra.h"
 /** Global variables */
 
 using namespace std;
@@ -69,7 +69,7 @@ struct WindowSize {
 	GLfloat d_height;
 	bool d_perspective;
 
-	WindowSize() : d_near(1.0f), d_far(300.0f),d_perspective(false),
+	WindowSize() : d_near(1.0f), d_far(100.0f),d_perspective(false),
 
 		d_widthPixel(512), d_width(30.0f),
 		d_heightPixel(512), d_height(30.0f)
@@ -90,7 +90,7 @@ bool left_drag = false;
 int last_x = 0, last_y = 0;
 GLfloat vertical_rotation = 0.0f, horizontal_rotation = 0.0f;
 const glm::vec3 camera_target = glm::vec3(0.0f, 0.0f, 0.0f); //Camera is always looking at the origin
-glm::vec3 camera_eye = glm::vec3(0.0f, 0.0f, -80.0f);
+glm::vec3 camera_eye = glm::vec3(0.0f, 0.0f, -11.0f);
 glm::vec3 camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
 glm::vec3 camera_right;
 glm::vec3 target_to_camera;
@@ -106,7 +106,33 @@ void updateCameraVectors() {
 }
 
 /********************************/
-int currentHash = 107;
+int currentHash = 0;
+int table[256];
+void drawShape(SimplePolyhedra p, vec3 center) {
+
+	glBegin(GL_LINES);
+
+	for (int i = 0; i < p._numverts; ++i) {
+
+
+		int edge = p._edges[i];
+
+		for (int j = 0; j < p._numverts; ++j) {
+			if (((1 << j) & edge) != 0) {
+
+				glVertex3fv(glm::value_ptr(p._vertices[i] + center));
+				glVertex3fv(glm::value_ptr(p._vertices[j] + center));
+
+
+			}
+		}
+	}
+
+
+	glEnd();
+
+
+}
 
 
 glm::vec3 interpolate(GLfloat isolevel, glm::vec3 p1, glm::vec3 p2, GLfloat valp1, GLfloat valp2) {
@@ -122,138 +148,28 @@ glm::vec3 interpolate(GLfloat isolevel, glm::vec3 p1, glm::vec3 p2, GLfloat valp
 	p.y = p1.y + mu * (p2.y - p1.y);
 	p.z = p1.z + mu * (p2.z - p1.z);
 
-	//return(p);
+	return(p);
 
-	return (p1+p2)/2.0f;
+	//return (p1+p2)/2.0f; //midpoint formula
 }
 
-void march(glm::vec3 center) {
-	//cout << "############  START MARCH ############" << endl;
-	//Check to ensure I have correct centers
-	//cout << center.x << " " << center.y << " "  << center.z << endl;
-	/*
-	int numverts = 8;
-	glm::vec3 vertices[] = { glm::vec3(-1.0f,-1.0f,-1.0f) + center,
-								glm::vec3(-1.0f,-1.0f,1.0f) + center,
-								glm::vec3(1.0f,-1.0f,1.0f) + center,
-								glm::vec3(1.0f,-1.0f,-1.0f) + center,
-								glm::vec3(-1.0f,1.0f,-1.0f) + center,
-								glm::vec3(-1.0f,1.0f,1.0f) + center,
-								glm::vec3(1.0f,1.0f,1.0f) + center,
-								glm::vec3(1.0f,1.0f,-1.0f) + center
-	};
-
+void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
 	
-	//Cube edges
-	int numedges = 12;
-	int edges[] = {
-						0b00011010,
-						0b00100101,
-						0b01001010,
-						0b10000101,
-						0b10100001,
-						0b01010010,
-						0b10100100,
-						0b01011000,
-	};
-	
-
-	//Cube faces
-	int numfaces = 6;
-	int faces[] = {
-						0b00001111,
-						0b00110011,
-						0b01100110,
-						0b11001100,
-						0b10011001,
-						0b11110000
-
-	};
-	*/
-	
-	const int numverts = 14;
-	vec3 *vertices = new vec3[numverts]{
-		vec3( 0.0f, 2.0f, 0.0f),
-
-		vec3( 1.0f, 1.0f, 1.0f),
-		vec3( 1.0f, 1.0f,-1.0f),
-		vec3(-1.0f, 1.0f,-1.0f),
-		vec3(-1.0f, 1.0f, 1.0f),
-
-		vec3( 2.0f, 0.0f, 0.0f),
-		vec3( 0.0f, 0.0f,-2.0f),
-		vec3(-2.0f, 0.0f, 0.0f),
-		vec3( 0.0f, 0.0f, 2.0f),
-
-		vec3( 1.0f,-1.0f, 1.0f),
-		vec3( 1.0f,-1.0f,-1.0f),
-		vec3(-1.0f,-1.0f,-1.0f),
-		vec3(-1.0f,-1.0f, 1.0f),
-
-		vec3( 0.0f,-2.0f, 0.0f)
-
-	};
-	
-
-	const int numedges = 24;
-	int *edges = new int[numverts] {
-			0b00000000011110,
-			
-			0b00000100100001,
-			0b00000001100001,
-			0b00000011000001,
-			0b00000110000001,
-			
-			0b00011000000110,
-			0b00110000001100,
-			0b01100000011000,
-			0b01001000010010,
-			
-			0b10000100100000,
-			0b10000001100000,
-			0b10000011000000,
-			0b10000110000000,
-			
-			0b01111000000000
-	};
-	
-	const int numfaces = 12;
-	int *faces = new int[numfaces] {
-			0b00000000100111,
-			0b00000001001101,
-			0b00000010011001,
-			0b00000100010011,
-
-			0b00001100100010,
-			0b00010001100100,
-			0b00100011001000,
-			0b01000110010000,
-
-			0b10011000100000,
-			0b10110001000000,
-			0b11100010000000,
-			0b11001100000000
-	};
-	
-
-
 	GLfloat isolevel = 100.0f;
 	int vertHash = 0; //This is an  integer to track the vertices contained in the isosurface
 	
-	for (int i = 0; i < numverts; i++) {
+	for (int i = 0; i < p._numverts; i++) {
 		//If vertex is within the isosurface
-		if (glm::dot(vertices[i], vertices[i]) <= isolevel) {
+		if (glm::dot(p._vertices[i] + center, p._vertices[i] + center) <= isolevel) {
 			vertHash = vertHash | 1 << i;
 		}
 	}
 	
-	
-	
-	
-	vertHash = currentHash % (int) pow(2, numverts);
+	int comp = pow(2, p._numverts) - 1;
 
+	//table[vertHash]++;
 	//Do the following when the cube is neither fully in or out of the sphere
-	if (vertHash != 0 && vertHash != 0x3FFF) {
+	if (vertHash != 0 && vertHash != comp) {
 		//cout << bitset<8>(vertHash) << endl;
 
 
@@ -264,22 +180,14 @@ void march(glm::vec3 center) {
 		//"Bubble merge" this will be fairly inefficient ~ for now
 		bool bubbled = false;
 		vector<int> planes = vector<int>();
-		for (int i = 0; i < numverts; i++) {
+		for (int i = 0; i < p._numverts; i++) {
 			
 			if ((vertHash & 1<<i) != 0) {
-				//cout << "\t*" << bitset<numverts>(vertHash & (1 << i)) << "*" << (vertHash & (1 << i)) << endl;
-				planes.push_back((edges[i] & vertHash) | (1<<i)); //each vertice that is contained make a list of its neighbours
+				planes.push_back((p._edges[i] & vertHash) | (1<<i)); //each vertice that is contained make a list of its neighbours
 
 			}
 		}
 
-		
-		for (int i = 0; i < planes.size(); i++) {
-
-			//cout << "\t" << bitset<((size_t) (numverts))>(planes[i]) << endl;
-		}
-		//cout << "--------" << endl;
-		
 		while (!bubbled) {
 			vector<int> mergedPlanes = vector<int>();
 			
@@ -316,14 +224,6 @@ void march(glm::vec3 center) {
 		}
 
 		
-		for (int i = 0; i < planes.size(); i++) {
-
-		//	cout << "\t" << bitset<numverts>(planes[i]) <<endl;
-		}
-		
-		
-
-
 		//For each plane of intersection render the plane
 
 		for (std::vector<int>::iterator it = planes.begin(); it != planes.end(); ++it) {
@@ -331,19 +231,16 @@ void march(glm::vec3 center) {
 
 			vector<int> crossedges = vector<int>();
 			
-			for (int i = 0; i < numverts; i++) {
+			for (int i = 0; i < p._numverts; i++) {
 				//Iterate for each vertice contained under the plane
 				if ((*it & 1 << i) != 0) {
-					int edgeHash = ~*it & edges[i];
+					int edgeHash = ~*it & p._edges[i];
 
 
-					//cout << "\t" << bitset<numverts>(~vertHash) << " & " << bitset<numverts>(edges[i]) << " = " << bitset<numverts>((~vertHash) & (edges[i])) << endl;
 
-					for (int e = 0; e < numverts; e++) {
+					for (int e = 0; e < p._numverts; e++) {
 						//Check the edges with one vertice in and one vertice out in the cube
 						if (edgeHash >> e & 1) {
-							
-						//	cout << "Push edge: " << bitset<numverts>(1 << i | 1 << e) << endl;
 							
 							crossedges.push_back(1<<i | 1<<e);
 
@@ -356,17 +253,16 @@ void march(glm::vec3 center) {
 			
 			//for each edge find a pair of edges sharing a face (only need one direction)
 			vector<std::pair<int,int>> triangle = vector<pair<int,int>>();
-			//cout << "Number of crossedges: " << crossedges.size() << endl;
+	
 			for (int i = 0; i < crossedges.size() - 1; i++) {
 				for (int j = i + 1; j < crossedges.size(); j++) {
 
 					//For each face check if the edges share the face
-					for (int f = 0; f < numfaces; f++) {
+					for (int f = 0; f < p._numfaces; f++) {
 
 						int tf = crossedges[i] | crossedges[j];
-						if ((faces[f] | tf) == faces[f]) {
+						if ((p._faces[f] | tf) == p._faces[f]) {
 							//They are on the same face
-						//	cout << bitset<numverts>(crossedges[i]) << " c " << bitset<numverts>(crossedges[j]) << endl;
 							triangle.push_back(std::make_pair(crossedges[i], crossedges[j]));
 							break;
 						}
@@ -376,7 +272,6 @@ void march(glm::vec3 center) {
 				}
 
 			}
-			///new push
 
 			glm::vec3 centroid = glm::vec3(0.0f);
 
@@ -386,16 +281,16 @@ void march(glm::vec3 center) {
 				glm::vec3 b = glm::vec3(0.0f);
 
 				bool pairsecond = false;
-				for (int v = 0; v < numverts; v++) {
+				for (int v = 0; v < p._numverts; v++) {
 					if (!pairsecond) {
 						if ((crossedges[i] & 1<<v) != 0) {
-							a = vertices[v];
+							a = p._vertices[v] + center;
 							pairsecond = true;
 						}
 					}
 					else {
 						if ((crossedges[i] & 1<<v) != 0) {
-							b = vertices[v];
+							b = p._vertices[v] + center;
 							break;
 						}
 
@@ -408,7 +303,7 @@ void march(glm::vec3 center) {
 
 			centroid /= (GLfloat)crossedges.size();
 
-			glBegin(GL_TRIANGLES); //USE GL_TRIANGLES or GL_LINE_LOOP
+			glBegin(GL_LINE_LOOP); //USE GL_TRIANGLES or GL_LINE_LOOP
 
 			for (int i = 0; i < triangle.size(); ++i) {
 
@@ -418,53 +313,38 @@ void march(glm::vec3 center) {
 				glm::vec3 b[2] = { glm::vec3(0.0f) , glm::vec3(0.0f) };
 
 				bool secondpair[2] = { false, false };
-			//	cout << "--------------------------" << endl;
-				for (int v = 0; v < numverts; ++v) {
+				
+				for (int v = 0; v < p._numverts; ++v) {
 					
-					if (!secondpair[0]) {
-						if ((triangle[i].first & 1 << v) != 0) {
-							a[0] = vertices[v];
+
+					if ((triangle[i].first & 1 << v) != 0) {
+						if (!secondpair[0]) {
+
+							a[0] = p._vertices[v] + center;
 							secondpair[0] = true;
 						}
-					}
-					else {
-						if ((triangle[i].first & 1 << v) != 0) {
-							b[0] = vertices[v];
-
-
-				//			cout << "pair 1: " << a[0].x << " " << a[0].y << " " << a[0].z << " and " << b[0].x << " " << b[0].y << " " << b[0].z << endl;
+						else {
+							b[0] = p._vertices[v] + center;
 						}
 					}
 					
-
-					if (!secondpair[1]) {
-						if ((triangle[i].second & 1 << v) != 0) {
-							a[1] = vertices[v];
+					if ((triangle[i].second & 1 << v) != 0) {
+						if (!secondpair[1]) {
+							a[1] = p._vertices[v] + center;
 							secondpair[1] = true;
 						}
-					}
-					else {
-						if ((triangle[i].second & 1 << v) != 0) {
-							b[1] = vertices[v];
-
-					//		cout << "pair 2: " << a[1].x << " " << a[1].y << " " << a[1].z << " and " << b[1].x << " " << b[1].y << " " << b[1].z << endl;
-
+						else {
+							b[1] = p._vertices[v] + center;
 						}
 					}
-					
-					
 				}
-			//	cout << "----------------------" << endl;
-			//	cout << "Edge " << i << endl;
+
 				glm::vec3 interPair[] = { interpolate(isolevel, a[0], b[0], glm::dot(a[0],a[0]), glm::dot(b[0],b[0])),
 										  interpolate(isolevel, a[1], b[1], glm::dot(a[1],a[1]), glm::dot(b[1],b[1])) };
 				
 
-				//cout << interPair[0].x << " " << interPair[0].y << " " << interPair[0].z << " and " << interPair[1].x << " " << interPair[1].y << " " << interPair[1].z << endl;
-
 				glVertex3fv(glm::value_ptr(interPair[0]));
 				glVertex3fv(glm::value_ptr(interPair[1]));
-
 
 			}
 
@@ -475,10 +355,38 @@ void march(glm::vec3 center) {
 
 	}
 
+}
+
+void lincomb(SimplePolyhedra p, vec3 origin, int depth, int *linc) {
+
+	if (depth == 0) {
+
+		vec3 center = origin;
+
+		for (int d = 0; d < p._numdirectionvectors; ++d) {
+			center += (GLfloat) (linc[d]) * p._directionvectors[d];
+		}
+
+		marchPolygon(p, center);
+		//drawShape(p, center);
+	}
+	else {
+
+		for (int i = -6; i < 6; ++i) {
+			linc[depth - 1] = i;
+			lincomb(p, origin, depth-1, linc);
+		}
+
+	}
+}
+void recursiveMarch(SimplePolyhedra p) {
+	//SimplePolyhedra p should be a Cube or RhombicDodecahedron atm.
+
+
 	
+	lincomb(p, vec3(0.0f, 0.0f, 0.0f), p._numdirectionvectors, new int[p._numdirectionvectors]);
 
 
-//	cout << "############# END MARCH #############" << endl;
 }
 
 void marchingCubes() {
@@ -503,8 +411,8 @@ void marchingCubes() {
 				glutWireCube(2.0f);
 				*/
 				//March Cubes
-
-				march(center);
+				//drawShape(Cube(), center);
+				marchPolygon(Cube(), center);
 
 			}
 				
@@ -516,88 +424,7 @@ void marchingCubes() {
 
 }
 
-//Temporary method
-void drawShape() {
 
-
-	int _numverts = 14;
-	vec3 *_vertices = new vec3[_numverts]{
-		vec3(0.0f,-2.0f,0.0f),
-
-		vec3(-1.0f,-1.0f,-1.0f),
-		vec3(-1.0f,-1.0f,1.0f),
-		vec3(1.0f,-1.0f,1.0f),
-		vec3(1.0f,-1.0f,-1.0f),
-
-		vec3(-2.0f,0.0f,0.0f),
-		vec3(0.0f,0.0f,2.0f),
-		vec3(2.0f,0.0f,0.0f),
-		vec3(0.0f,0.0f,-2.0f),
-
-		vec3(-1.0f,1.0f,-1.0f),
-		vec3(-1.0f,1.0f,1.0f),
-		vec3(1.0f,1.0f,1.0f),
-		vec3(1.0f,1.0f,-1.0f),
-
-		vec3(0.0f,2.0f,0.0f)
-
-	};
-
-
-	int _numedges = 24;
-	int *_edges = new int[_numverts] {
-			0b00000000011110,
-			0b00000100100001,
-			0b00000001100001,
-			0b00000011000001,
-			0b00000110000001,
-			0b00011000000110,
-			0b00110000001100,
-			0b01100000011000,
-			0b01001000010010,
-			0b10000100100000,
-			0b10000001100000,
-			0b10000011000000,
-			0b10000110000000,
-			0b01111000000000,
-	};
-
-
-	int _numfaces = 12;
-	int *_faces = new int[_numfaces] {
-			0b00000001001101,
-			0b00000010011001,
-			0b00000100000111,
-			0b00000000101101,
-			0b00100011001000,
-			0b01000110010000,
-			0b00001100100010,
-			0b00010001100100,
-			0b10110010000000,
-			0b11100001000000,
-			0b11001100000000,
-			0b10011000100000	
-	};	
-	
-	glBegin(GL_LINES);
-	for (int i = 0; i < _numverts; ++i) {
-		
-		
-		int edge = _edges[i];
-
-		for (int j = 0; j < _numverts; ++j) {
-			if (((1 << j) & edge) != 0) {
-				//cout << i << " and " << j << endl;
-				
-				glVertex3fv(glm::value_ptr(_vertices[i]));
-				glVertex3fv(glm::value_ptr(_vertices[j]));
-				
-			}
-		}
-	}
-	glEnd();
-	
-}
 
 
 
@@ -632,12 +459,10 @@ void display(void) {
 
 	//marchingCubes();
 	
-	drawShape();
-	march(glm::vec3(0.0f, 0.0f, 0.0f));
+	recursiveMarch(RhombicDodecahedron());
 
+	
 
-	//glutWireSphere(10.0f,20,20);
-	//glutSolidSphere(15.0f, 20, 20);
 
 	// swap buffers
 	glutSwapBuffers();

@@ -118,4 +118,15 @@ RhombicDodecahedron::RhombicDodecahedron()
 			0b11001100000000
 	};
 
+
+
+	_directionvectors = new vec3[_numdirectionvectors]{
+		cross((_vertices[0] - _vertices[1]), (_vertices[0] - _vertices[2])),
+		cross((_vertices[0] - _vertices[2]), (_vertices[0] - _vertices[3])),
+		cross((_vertices[0] - _vertices[3]), (_vertices[0] - _vertices[4])),
+		cross((_vertices[0] - _vertices[4]), (_vertices[0] - _vertices[1])),
+		cross((_vertices[1] - _vertices[5]), (_vertices[1] - _vertices[8])),
+		cross((_vertices[2] - _vertices[5]), (_vertices[2] - _vertices[6]))
+	};
+
 }

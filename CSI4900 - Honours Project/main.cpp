@@ -11,6 +11,7 @@
 #include <GL/glut.h>
 #include <stack>
 #include <fstream>
+#include <functional>
 // glm types
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
@@ -26,10 +27,6 @@
 
 using namespace std;
 using namespace glm;
-
-/*
-* Helper structure for the array of vertices
-*/
 
 
 
@@ -77,33 +74,41 @@ struct WindowSize {
 };
 WindowSize g_winSize;
 
+/**
+* Camera properties
+*/
+struct Camera {
+	GLboolean left_drag;
+	GLint last_x, last_y;
+	GLfloat vertical_rotation, horizontal_rotation;
+
+	glm::vec3 camera_target;
+	glm::vec3 camera_eye, camera_up;
+	glm::vec3 target_to_camera;
+
+	Camera() : left_drag(false), 
+		
+		last_x(0), last_y(0),
+		vertical_rotation(0.0f), horizontal_rotation(0.0f),
+		camera_target(0.0f,0.0f,0.0f), 
+		camera_eye(0.0f,0.0f, -11.0f),
+		camera_up(0.0f, 1.0f, 0.0f) {}
+
+
+	void updateCameraVectors() {
+		// Create the new camera up and right vectors
+		glm::vec3 camera_right = glm::normalize(glm::cross(camera_eye, camera_up));
+		camera_up = glm::normalize(glm::cross(camera_right, camera_eye));
+
+		// Rotate the eye accordingly
+		camera_eye = glm::rotate(camera_eye, horizontal_rotation, camera_up);
+		camera_eye = glm::rotate(camera_eye, vertical_rotation, camera_right);
+	}
+};
+Camera g_camera;
+
 GLuint g_program;
 GLuint* g_bufferObjects;
-
-
-
-
-/**
-* Sloppy camera code
-*/
-bool left_drag = false;
-int last_x = 0, last_y = 0;
-GLfloat vertical_rotation = 0.0f, horizontal_rotation = 0.0f;
-const glm::vec3 camera_target = glm::vec3(0.0f, 0.0f, 0.0f); //Camera is always looking at the origin
-glm::vec3 camera_eye = glm::vec3(0.0f, 0.0f, -11.0f);
-glm::vec3 camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
-glm::vec3 camera_right;
-glm::vec3 target_to_camera;
-
-void updateCameraVectors() {
-	// Create the new camera up and right vectors
-	camera_right = glm::normalize(glm::cross(camera_eye, camera_up));
-	camera_up = glm::normalize(glm::cross(camera_right, camera_eye));
-
-	// Rotate the eye accordingly
-	camera_eye = glm::rotate(camera_eye, horizontal_rotation, camera_up);
-	camera_eye = glm::rotate(camera_eye, vertical_rotation, camera_right);
-}
 
 /********************************/
 int currentHash = 0;
@@ -165,21 +170,64 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
 		}
 	}
 	
-	int comp = pow(2, p._numverts) - 1;
-
+	int comp = (1<<(p._numverts)) - 1;
+	
 	//table[vertHash]++;
 	//Do the following when the cube is neither fully in or out of the sphere
 	if (vertHash != 0 && vertHash != comp) {
-		//cout << bitset<8>(vertHash) << endl;
-
-
+		
 		//Find each plane of intersection on cube
-		
-		
-		
 		//"Bubble merge" this will be fairly inefficient ~ for now
-		bool bubbled = false;
+		
 		vector<int> planes = vector<int>();
+
+
+		//Probably move this into higher scope
+		function<int(SimplePolyhedra p, int vert, int hash)> floodFill;
+		floodFill = [&floodFill](SimplePolyhedra p, int vert, int hash) {
+			int res = 0;
+			if ((1 << vert) & hash) { //vert in hash
+				res = (1 << vert);
+				for (int e = 0; e < p._numverts; ++e) { //for each vert e in p
+					if ((1<<e) & p._edges[vert]) { //if the vert shares an edge with i
+						if ((1 << e) & hash) { //if the i-th vert is in the hash
+							res |= floodFill(p, e, (hash & ~(1 << vert)));
+						}
+					}
+				}	
+			}
+			return res;
+		};
+
+		//int fillHash = 0b10110001;
+		//cout << "FloodFill of: " << bitset<8>(fillHash) << endl;
+		
+		for (int i = 0; i < p._numverts; ++i) {
+			bool iAccountedFor = false;
+
+			for (int pl : planes) {
+				if ((1 << i) & pl) {
+					iAccountedFor = true;
+					break;
+				}
+			}
+
+			if (!iAccountedFor) {
+				int pHash = floodFill(p, i, vertHash);
+
+				if (pHash != 0) {
+
+					planes.push_back(pHash);
+					//cout << "\t" << bitset<8>(pHash) << endl;
+				}
+			}
+		}
+
+		for (int p : planes) {
+			cout << bitset<8>(p) << endl;
+
+		}
+		/*
 		for (int i = 0; i < p._numverts; i++) {
 			
 			if ((vertHash & 1<<i) != 0) {
@@ -222,13 +270,10 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
 
 			planes = mergedPlanes;
 		}
-
+		*/
 		
 		//For each plane of intersection render the plane
-
 		for (std::vector<int>::iterator it = planes.begin(); it != planes.end(); ++it) {
-			//Render each midpoint: use GL_LINE_LOOP, or GL_TRIANGLE_STRIP (or GL_POLYGON)
-
 			vector<int> crossedges = vector<int>();
 			
 			for (int i = 0; i < p._numverts; i++) {
@@ -357,7 +402,7 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
 
 }
 
-void lincomb(SimplePolyhedra p, vec3 origin, int depth, int *linc) {
+void lincomb(SimplePolyhedra p, vec3 origin, int depth, GLint *linc) {
 
 	if (depth == 0) {
 
@@ -367,13 +412,17 @@ void lincomb(SimplePolyhedra p, vec3 origin, int depth, int *linc) {
 			center += (GLfloat) (linc[d]) * p._directionvectors[d];
 		}
 
-		marchPolygon(p, center);
-		//drawShape(p, center);
+		
+
+		//marchPolygon(p, center);
+		drawShape(p, center);
 	}
 	else {
 
-		for (int i = -6; i < 6; ++i) {
-			linc[depth - 1] = i;
+		//TODO Test for bounding box
+		int size = 1;
+		for (int i = -size; i <= size; ++i) {
+			linc[depth - 1] = i; //determines base case to be 0 otherwise we have 0-1
 			lincomb(p, origin, depth-1, linc);
 		}
 
@@ -384,7 +433,7 @@ void recursiveMarch(SimplePolyhedra p) {
 
 
 	
-	lincomb(p, vec3(0.0f, 0.0f, 0.0f), p._numdirectionvectors, new int[p._numdirectionvectors]);
+	lincomb(p, vec3(0.0f, 0.0f, 0.0f), p._numdirectionvectors, new GLint[p._numdirectionvectors]);
 
 
 }
@@ -440,8 +489,8 @@ void display(void) {
 	
 
 	//Direct camera using our coordinate's basis
-	if (left_drag == true) updateCameraVectors(); //Don't update camera unless the camera is being moved
-	glm::mat4 View = glm::lookAt(camera_eye, camera_target, camera_up);
+	if (g_camera.left_drag) g_camera.updateCameraVectors(); //Don't update camera unless the camera is being moved
+	glm::mat4 View = glm::lookAt(g_camera.camera_eye, g_camera.camera_target, g_camera.camera_up);
 	glm::mat4 Model = glm::mat4(1.0f);
 
 
@@ -463,7 +512,7 @@ void display(void) {
 
 	
 
-
+	cout << "Finish display" << endl;
 	// swap buffers
 	glutSwapBuffers();
 }
@@ -492,11 +541,7 @@ void keyboardFunc(unsigned char _key, int _x, int _y) {
 	case 'R':
 
 		// Reset camera to be on z axis looking at origin
-		camera_right = glm::vec3(1.0f, 0.0f, 0.0f);
-		camera_up = glm::vec3(0.0f, 1.0f, 0.0f);
-		camera_eye = glm::vec3(0.0f, 0.0f, -5.0f);
-		horizontal_rotation = 0;
-		vertical_rotation = 0;
+		g_camera = Camera();
 		break;
 	case 'i':
 	case 'I':
@@ -523,15 +568,15 @@ void specialKeyboardFunc(int _key, int _x, int _y) {
 void mouseFunc(int button, int state, int x, int y) {
 
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-		left_drag = true;
+		g_camera.left_drag = true;
 
-		last_x = x;
-		last_y = y;
+		g_camera.last_x = x;
+		g_camera.last_y = y;
 
 		glutPostRedisplay();
 	}
 	else if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
-		left_drag = false;
+		g_camera.left_drag = false;
 
 		glutPostRedisplay();
 	}
@@ -541,12 +586,12 @@ void mouseFunc(int button, int state, int x, int y) {
 
 // mouse button callback
 void motionFunc(int x, int y) {
-	if (left_drag) {
-		horizontal_rotation = (float)(last_x - x) * 0.01f;
-		vertical_rotation = (float)(y - last_y) * 0.01f;
+	if (g_camera.left_drag) {
+		g_camera.horizontal_rotation = (GLfloat)(g_camera.last_x - x) * 0.01f;
+		g_camera.vertical_rotation = (GLfloat)(y - g_camera.last_y) * 0.01f;
 
-		last_x = x;
-		last_y = y;
+		g_camera.last_x = x;
+		g_camera.last_y = y;
 
 		glutPostRedisplay();
 	}

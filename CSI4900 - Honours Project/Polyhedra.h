@@ -6,7 +6,11 @@
 #include <cstdlib> //Remove after
 #include <glm/glm.hpp>
 #include <iostream>
+#include <vector>
+#include <list>
+#include <unordered_set>
 using namespace glm;
+
 
 
 class SimplePolyhedra
@@ -20,10 +24,12 @@ public:
 	//Edge List
 	const int _numedges;
 	int *_edges;
+	//vector< list<int> > _edgeAdjancencyList;
 
 	//Faces
 	const int _numfaces;
 	int *_faces;
+	//vector< unordered_set<int> > _faceSets;
 
 	//Direction Vectors
 	const int _numdirectionvectors;
@@ -46,18 +52,7 @@ public:
 		return _vertices;
 	}
 
-	virtual void print() {
-
-		std::cout << "SimplePolyhedra: " <<  _numverts << std::endl;
-
-		for (int i = 0; i < _numverts; ++i) {
-
-			std::cout << "\t " << _vertices[i].x << " " << _vertices[i].y << " " << _vertices[i].z << std::endl;
-
-
-		}
-
-	}
+	
 };
 
 class Cube : public SimplePolyhedra
@@ -80,7 +75,7 @@ public:
 
 
 		_edges = new int[_numverts] {
-			0b00011010,
+				0b00011010,
 				0b00100101,
 				0b01001010,
 				0b10000101,
@@ -90,6 +85,16 @@ public:
 				0b01011000,
 		};
 
+		/*
+		_edgeAdjancencyList.push_back(list<int>{1, 3, 4});
+		_edgeAdjancencyList.push_back(list<int>{0, 2, 5});
+		_edgeAdjancencyList.push_back(list<int>{1, 3, 6});
+		_edgeAdjancencyList.push_back(list<int>{0, 2, 7});
+		_edgeAdjancencyList.push_back(list<int>{0, 5, 7});
+		_edgeAdjancencyList.push_back(list<int>{1, 4, 6});
+		_edgeAdjancencyList.push_back(list<int>{2, 5, 7});
+		_edgeAdjancencyList.push_back(list<int>{3, 4, 6});
+		*/
 
 
 		_faces = new int[_numverts] {
@@ -101,7 +106,14 @@ public:
 				0b11110000
 
 		};
-
+		/*
+		_faceSets.push_back(unordered_set<int>{ 0, 1, 2, 3 });
+		_faceSets.push_back(unordered_set<int>{ 0, 1, 4, 5 });
+		_faceSets.push_back(unordered_set<int>{ 1, 2, 5, 6 });
+		_faceSets.push_back(unordered_set<int>{ 2, 3, 6, 7 });
+		_faceSets.push_back(unordered_set<int>{ 0, 3, 4, 7 });
+		_faceSets.push_back(unordered_set<int>{ 4, 5, 6, 7 });
+		*/
 
 		_directionvectors = new vec3[_numdirectionvectors]{
 			vec3(2.0f,0.0f,0.0f),
@@ -127,7 +139,7 @@ class RhombicDodecahedron : public SimplePolyhedra
 protected:
 
 public:
-	RhombicDodecahedron() : SimplePolyhedra(14, 26, 12, 6) {
+	RhombicDodecahedron() : SimplePolyhedra(14, 24, 12, 6) {
 
 		_vertices = new vec3[_numverts]{
 			vec3(0.0f, 2.0f, 0.0f),

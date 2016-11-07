@@ -6,12 +6,15 @@
 #include <iostream>
 #include <vector>
 #include <array>
+#include <unordered_map>
 #include <algorithm>
 #include <GL/glew.h>
 #include <GL/glut.h>
 #include <stack>
 #include <fstream>
 #include <functional>
+#include <algorithm>
+#include <set>
 // glm types
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
@@ -20,7 +23,7 @@
 // value_ptr
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/rotate_vector.hpp>
-
+#include <glm/gtx/hash.hpp>
 #include "shader.h"
 #include "Polyhedra.h"
 /** Global variables */
@@ -28,6 +31,7 @@
 using namespace std;
 using namespace glm;
 
+typedef pair<int, int> edge;
 
 
 /*
@@ -66,7 +70,7 @@ struct WindowSize {
 	GLfloat d_height;
 	bool d_perspective;
 
-	WindowSize() : d_near(1.0f), d_far(100.0f),d_perspective(false),
+	WindowSize() : d_near(1.0f), d_far(10.0f),d_perspective(false),
 
 		d_widthPixel(512), d_width(30.0f),
 		d_heightPixel(512), d_height(30.0f)
@@ -91,7 +95,7 @@ struct Camera {
 		last_x(0), last_y(0),
 		vertical_rotation(0.0f), horizontal_rotation(0.0f),
 		camera_target(0.0f,0.0f,0.0f), 
-		camera_eye(0.0f,0.0f, -11.0f),
+		camera_eye(0.0f,0.0f, -12.0f),
 		camera_up(0.0f, 1.0f, 0.0f) {}
 
 
@@ -110,9 +114,15 @@ Camera g_camera;
 GLuint g_program;
 GLuint* g_bufferObjects;
 
+
+unordered_map <int, vector<vector<pair<edge, edge>>>> hashTable; //Stores hashes to speed up computations later
+
+GLuint total_triangles;
+
 /********************************/
 int currentHash = 0;
 int table[256];
+
 void drawShape(SimplePolyhedra p, vec3 center) {
 
 	glBegin(GL_LINES);
@@ -175,232 +185,161 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
 	//table[vertHash]++;
 	//Do the following when the cube is neither fully in or out of the sphere
 	if (vertHash != 0 && vertHash != comp) {
-		
-		//Find each plane of intersection on cube
-		//"Bubble merge" this will be fairly inefficient ~ for now
-		
-		vector<int> planes = vector<int>();
 
 
-		//Probably move this into higher scope
-		function<int(SimplePolyhedra p, int vert, int hash)> floodFill;
-		floodFill = [&floodFill](SimplePolyhedra p, int vert, int hash) {
-			int res = 0;
-			if ((1 << vert) & hash) { //vert in hash
-				res = (1 << vert);
-				for (int e = 0; e < p._numverts; ++e) { //for each vert e in p
-					if ((1<<e) & p._edges[vert]) { //if the vert shares an edge with i
-						if ((1 << e) & hash) { //if the i-th vert is in the hash
-							res |= floodFill(p, e, (hash & ~(1 << vert)));
+		if (hashTable.count(vertHash) < 1) {
+			//The entry hasn't been made
+			vector<vector<pair<edge, edge>>> hashEntry;
+
+			//Find each plane of intersection on cube this is each vector<pair<int,in>> entry in the hashTable
+			vector<int> planes = vector<int>();
+
+
+			//Probably move this into higher scope
+			function<int(SimplePolyhedra p, int vert, int hash)> floodFill;
+			floodFill = [&floodFill](SimplePolyhedra p, int vert, int hash) {
+				int res = 0;
+				if ((1 << vert) & hash) { //vert in hash
+					res = (1 << vert);
+					for (int e = 0; e < p._numverts; ++e) { //for each vert e in p
+						if ((1 << e) & p._edges[vert]) { //if the vert shares an edge with i
+							if ((1 << e) & hash) { //if the i-th vert is in the hash
+								res |= floodFill(p, e, (hash & ~(1 << vert)));
+							}
 						}
 					}
-				}	
-			}
-			return res;
-		};
-
-		//int fillHash = 0b10110001;
-		//cout << "FloodFill of: " << bitset<8>(fillHash) << endl;
-		
-		for (int i = 0; i < p._numverts; ++i) {
-			bool iAccountedFor = false;
-
-			for (int pl : planes) {
-				if ((1 << i) & pl) {
-					iAccountedFor = true;
-					break;
 				}
-			}
+				return res;
+			};
 
-			if (!iAccountedFor) {
-				int pHash = floodFill(p, i, vertHash);
-
-				if (pHash != 0) {
-
-					planes.push_back(pHash);
-					//cout << "\t" << bitset<8>(pHash) << endl;
-				}
-			}
-		}
-
-		for (int p : planes) {
-			cout << bitset<8>(p) << endl;
-
-		}
-		/*
-		for (int i = 0; i < p._numverts; i++) {
-			
-			if ((vertHash & 1<<i) != 0) {
-				planes.push_back((p._edges[i] & vertHash) | (1<<i)); //each vertice that is contained make a list of its neighbours
-
-			}
-		}
-
-		while (!bubbled) {
-			vector<int> mergedPlanes = vector<int>();
-			
-			bubbled = true;
-
-			while (!planes.empty()) {
-				int add = planes.back();
-				planes.pop_back();
-
-				//Take the list of neighbours that are not linearly independent  (within the isosurface) and merge them
-				bool shared = false;
-				
-				for (std::vector<int>::iterator it = mergedPlanes.begin(); it != mergedPlanes.end(); ++it) {
-					int test = (add & *it);
-					if ((add & *it) != 0) {
-					//	cout << "\t" << bitset<numverts>(*it) << "*" << endl;
-						*it = add | *it;
-						shared = true;
+			for (int i = 0; i < p._numverts; ++i) {
+				bool iAccountedFor = false;
+				for (int pl : planes) {
+					if ((1 << i) & pl) {
+						iAccountedFor = true;
 						break;
-					//	cout << *it << endl;
 					}
 				}
 
-				if (shared == false) {
-					mergedPlanes.push_back(add);
+				if (!iAccountedFor) {
+					int pHash = floodFill(p, i, vertHash);
+					if (pHash != 0) {
+						planes.push_back(pHash);
+					}
 				}
-				else {
-					bubbled = false;
-				}
-
 			}
 
-			planes = mergedPlanes;
+
+			//For each distinct cut of the polyhedra
+
+			int hashEntryIndex = 0;
+
+			for (std::vector<int>::iterator it = planes.begin(); it != planes.end(); ++it) {
+
+				hashEntry.push_back(vector<pair<edge, edge>>()); //New wrinkle-plane to be added
+
+
+
+				//TO DO FIX AND MAKE READABLE
+				vector<edge> crossedges = vector<edge>();
+
+				for (int i = 0; i < p._numverts; i++) { //Iterate for each vertice contained under the plane
+					if ((*it & 1 << i) != 0) {
+						int edgeHash = ~*it & p._edges[i];
+						for (int e = 0; e < p._numverts; e++) {
+							//Check the edges with one vertice in and one vertice out in the cube
+							if (edgeHash >> e & 1) {
+								crossedges.push_back((edge(i, e)));
+							}
+
+						}
+					}
+
+				}
+
+				//for each edge find a pair of edges sharing a face (only need one direction)
+				vector<pair<edge, edge>> triangle = vector<pair<edge, edge>>();
+
+				for (int i = 0; i < crossedges.size() - 1; i++) {
+					for (int j = i + 1; j < crossedges.size(); j++) {
+
+						//For each face check if the edges share the face
+						for (int f = 0; f < p._numfaces; f++) {
+
+							int tf = (1 << crossedges[i].first | 1 << crossedges[i].second) | (1 << crossedges[j].first | 1 << crossedges[j].second);
+							if ((p._faces[f] | tf) == p._faces[f]) {
+
+								//They are on the same face
+								triangle.push_back(make_pair(crossedges[i], crossedges[j]));
+
+								hashEntry[hashEntryIndex].push_back(std::make_pair(crossedges[i], crossedges[j]));
+								break;
+							}
+
+						}
+
+					}
+
+				}
+			}
+
+
+			hashTable[vertHash] = hashEntry;
+
 		}
-		*/
-		
-		//For each plane of intersection render the plane
-		for (std::vector<int>::iterator it = planes.begin(); it != planes.end(); ++it) {
-			vector<int> crossedges = vector<int>();
-			
-			for (int i = 0; i < p._numverts; i++) {
-				//Iterate for each vertice contained under the plane
-				if ((*it & 1 << i) != 0) {
-					int edgeHash = ~*it & p._edges[i];
+		//We now definitely have the key, and just create the elements then
 
 
-
-					for (int e = 0; e < p._numverts; e++) {
-						//Check the edges with one vertice in and one vertice out in the cube
-						if (edgeHash >> e & 1) {
-							
-							crossedges.push_back(1<<i | 1<<e);
-
-						}
-
-					}
-				}
-
-			}
-			
-			//for each edge find a pair of edges sharing a face (only need one direction)
-			vector<std::pair<int,int>> triangle = vector<pair<int,int>>();
-	
-			for (int i = 0; i < crossedges.size() - 1; i++) {
-				for (int j = i + 1; j < crossedges.size(); j++) {
-
-					//For each face check if the edges share the face
-					for (int f = 0; f < p._numfaces; f++) {
-
-						int tf = crossedges[i] | crossedges[j];
-						if ((p._faces[f] | tf) == p._faces[f]) {
-							//They are on the same face
-							triangle.push_back(std::make_pair(crossedges[i], crossedges[j]));
-							break;
-						}
-
-					}
-
-				}
-
-			}
+		for (vector<pair<edge, edge>> cut : hashTable[vertHash]) {
 
 			glm::vec3 centroid = glm::vec3(0.0f);
 
-			for (int i = 0; i < crossedges.size(); i++) {
+			//cut is a pair of edges that mixed with a centroid forms a triangle
+			for (pair<edge, edge> crossedges : cut) {
 
-				glm::vec3 a = glm::vec3(0.0f);
-				glm::vec3 b = glm::vec3(0.0f);
+				glm::vec3 a, b;
 
-				bool pairsecond = false;
-				for (int v = 0; v < p._numverts; v++) {
-					if (!pairsecond) {
-						if ((crossedges[i] & 1<<v) != 0) {
-							a = p._vertices[v] + center;
-							pairsecond = true;
-						}
-					}
-					else {
-						if ((crossedges[i] & 1<<v) != 0) {
-							b = p._vertices[v] + center;
-							break;
-						}
+				a = p._vertices[crossedges.first.first] + center;
+				b = p._vertices[crossedges.first.second] + center;
+				centroid += interpolate(isolevel, a, b, glm::dot(a, a), glm::dot(b, b));
 
-					}
-					
-				}
 
-				centroid += interpolate(isolevel, a, b, glm::dot(a,a), glm::dot(b,b));
+				a = p._vertices[crossedges.second.first] + center;
+				b = p._vertices[crossedges.second.second] + center;
+				centroid += interpolate(isolevel, a, b, glm::dot(a, a), glm::dot(b, b));
 			}
 
-			centroid /= (GLfloat)crossedges.size();
+			centroid /= (GLfloat)(2 * cut.size());
 
-			glBegin(GL_LINE_LOOP); //USE GL_TRIANGLES or GL_LINE_LOOP
+			glBegin(GL_TRIANGLES); //USE GL_TRIANGLES or GL_LINE_LOOP
 
-			for (int i = 0; i < triangle.size(); ++i) {
+			for (pair<edge, edge> triangle : cut) {
 
 				glVertex3fv(glm::value_ptr(centroid));
-				
-				glm::vec3 a[2] = { glm::vec3(0.0f) , glm::vec3(0.0f)};
-				glm::vec3 b[2] = { glm::vec3(0.0f) , glm::vec3(0.0f) };
 
-				bool secondpair[2] = { false, false };
-				
-				for (int v = 0; v < p._numverts; ++v) {
-					
+				glm::vec3 a1, a2, b1, b2;
 
-					if ((triangle[i].first & 1 << v) != 0) {
-						if (!secondpair[0]) {
+				a1 = p._vertices[triangle.first.first] + center;
+				b1 = p._vertices[triangle.first.second] + center;
+				glVertex3fv(glm::value_ptr(interpolate(isolevel, a1, b1, glm::dot(a1, a1), glm::dot(b1, b1))));
 
-							a[0] = p._vertices[v] + center;
-							secondpair[0] = true;
-						}
-						else {
-							b[0] = p._vertices[v] + center;
-						}
-					}
-					
-					if ((triangle[i].second & 1 << v) != 0) {
-						if (!secondpair[1]) {
-							a[1] = p._vertices[v] + center;
-							secondpair[1] = true;
-						}
-						else {
-							b[1] = p._vertices[v] + center;
-						}
-					}
-				}
 
-				glm::vec3 interPair[] = { interpolate(isolevel, a[0], b[0], glm::dot(a[0],a[0]), glm::dot(b[0],b[0])),
-										  interpolate(isolevel, a[1], b[1], glm::dot(a[1],a[1]), glm::dot(b[1],b[1])) };
-				
-
-				glVertex3fv(glm::value_ptr(interPair[0]));
-				glVertex3fv(glm::value_ptr(interPair[1]));
+				a2 = p._vertices[triangle.second.first] + center;
+				b2 = p._vertices[triangle.second.second] + center;
+				glVertex3fv(glm::value_ptr(interpolate(isolevel, a2, b2, glm::dot(a2, a2), glm::dot(b2, b2))));
 
 			}
 
+			++total_triangles;
 			glEnd();
+
 		}
-
-		
-
 	}
-
+			
 }
+std::ofstream outfile; //Debugging stream
+unordered_set<vec3> processedPositions;
+
 
 void lincomb(SimplePolyhedra p, vec3 origin, int depth, GLint *linc) {
 
@@ -413,14 +352,23 @@ void lincomb(SimplePolyhedra p, vec3 origin, int depth, GLint *linc) {
 		}
 
 		
+		//outfile << "p " << center.x << " " << center.y << " " << center.z << endl;
 
-		//marchPolygon(p, center);
-		drawShape(p, center);
+		//**TODO -- Poor solution needs to be properly analysed
+		if (processedPositions.find(center) != processedPositions.end()) {
+			//We have not already encountered this position
+			marchPolygon(p, center);
+			processedPositions.insert(center);
+			//drawShape(p, center);
+		}
+		
+		
+		
 	}
 	else {
 
 		//TODO Test for bounding box
-		int size = 1;
+		int size = 6;
 		for (int i = -size; i <= size; ++i) {
 			linc[depth - 1] = i; //determines base case to be 0 otherwise we have 0-1
 			lincomb(p, origin, depth-1, linc);
@@ -428,13 +376,46 @@ void lincomb(SimplePolyhedra p, vec3 origin, int depth, GLint *linc) {
 
 	}
 }
+
+
+void recursiveFaceOrientedSpherePacking(SimplePolyhedra p, vec3 pos) {
+
+	//check within bounding box
+
+	if (abs(pos.x) > 10.0f || abs(pos.y) > 10.0f || abs(pos.z) > 10.0f) {
+		//We are not going to render this position
+		return;
+	}
+	else if (processedPositions.find(pos) != processedPositions.end()){
+		//We have processed this position. No need to render.
+		return;
+	}
+	else {
+		marchPolygon(p, pos);
+		processedPositions.insert(pos);
+		//drawShape(p, pos);
+
+		for (int i = 0; i < p._numdirectionvectors; ++i) {
+			recursiveFaceOrientedSpherePacking(p, pos + p._directionvectors[i]);
+			recursiveFaceOrientedSpherePacking(p, pos - p._directionvectors[i]);
+		}
+	}
+
+
+
+
+}
+
 void recursiveMarch(SimplePolyhedra p) {
 	//SimplePolyhedra p should be a Cube or RhombicDodecahedron atm.
 
 
+	//outfile.open(p.label + " pos.txt");
+	processedPositions = unordered_set<vec3>();
+	//lincomb(p, vec3(0.0f, 0.0f, 0.0f), p._numdirectionvectors, new GLint[p._numdirectionvectors]);
 	
-	lincomb(p, vec3(0.0f, 0.0f, 0.0f), p._numdirectionvectors, new GLint[p._numdirectionvectors]);
-
+	recursiveFaceOrientedSpherePacking(p, vec3(0.0f, 0.0f, 0.0f));
+	//outfile.close();
 
 }
 
@@ -493,6 +474,13 @@ void display(void) {
 	glm::mat4 View = glm::lookAt(g_camera.camera_eye, g_camera.camera_target, g_camera.camera_up);
 	glm::mat4 Model = glm::mat4(1.0f);
 
+	/*
+	string strTri = to_string(total_triangles);
+	glRasterPos2f(10, 10);
+	for (char c : strTri) {
+		glutBitmapCharacter(GLUT_BITMAP_9_BY_15, c);
+	}*/
+
 
 	// Update uniform for this drawing
 	
@@ -500,16 +488,17 @@ void display(void) {
 	glUniformMatrix4fv(g_tfm.locM, 1, GL_FALSE, glm::value_ptr(Model));
 
 
-	//Call to marching draw command here
 	/**TODO
-		Allow generalization of object (not just cubes)
 		Decide when to choose isosurface to be rendered
 	*/
 
-	//marchingCubes();
+	total_triangles = 0;
+	SimplePolyhedra poly = RhombicDodecahedron();
 	
-	recursiveMarch(RhombicDodecahedron());
+	recursiveMarch(poly);
 
+	
+	
 	
 
 	cout << "Finish display" << endl;

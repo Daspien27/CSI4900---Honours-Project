@@ -8,6 +8,7 @@
 #include <iostream>
 #include <vector>
 #include <list>
+#include <string>
 #include <unordered_set>
 using namespace glm;
 
@@ -17,6 +18,8 @@ class SimplePolyhedra
 {
 
 public:
+	const std::string label;
+
 	//Vertices
 	const int _numverts;
 	vec3 *_vertices;
@@ -36,11 +39,11 @@ public:
 	vec3 *_directionvectors;
 
 public:
-	SimplePolyhedra() : _numverts(0), _numedges(0), _numfaces(0), _numdirectionvectors(0){
+	SimplePolyhedra() : _numverts(0), _numedges(0), _numfaces(0), _numdirectionvectors(0), label("SimplePolyhedra"){
 
 
 	}
-	SimplePolyhedra(int nverts, int nedges, int nfaces, int ndirectionv) : _numverts(nverts),_numedges(nedges), _numfaces(nfaces), _numdirectionvectors(ndirectionv){
+	SimplePolyhedra(int nverts, int nedges, int nfaces, int ndirectionv, std::string label) : _numverts(nverts),_numedges(nedges), _numfaces(nfaces), _numdirectionvectors(ndirectionv), label(label){
 			
 	}
 	~SimplePolyhedra()
@@ -60,7 +63,7 @@ class Cube : public SimplePolyhedra
 protected:
 	
 public:
-	Cube() : SimplePolyhedra(8, 12, 6, 3) {
+	Cube() : SimplePolyhedra(8, 12, 6, 3, "Cube") {
 
 		_vertices = new vec3[_numverts]{ vec3(-1.0f,-1.0f,-1.0f),
 			vec3(-1.0f,-1.0f,1.0f),
@@ -139,7 +142,7 @@ class RhombicDodecahedron : public SimplePolyhedra
 protected:
 
 public:
-	RhombicDodecahedron() : SimplePolyhedra(14, 24, 12, 6) {
+	RhombicDodecahedron() : SimplePolyhedra(14, 24, 12, 6, "RhombicDodecahedra") {
 
 		_vertices = new vec3[_numverts]{
 			vec3(0.0f, 2.0f, 0.0f),
@@ -203,7 +206,7 @@ public:
 		};
 
 
-
+		
 		_directionvectors = new vec3[_numdirectionvectors]{
 			cross((_vertices[0] - _vertices[1]), (_vertices[0] - _vertices[2])),
 			cross((_vertices[0] - _vertices[2]), (_vertices[0] - _vertices[3])),
@@ -212,8 +215,15 @@ public:
 			cross((_vertices[1] - _vertices[5]), (_vertices[1] - _vertices[8])),
 			cross((_vertices[2] - _vertices[5]), (_vertices[2] - _vertices[6]))
 		};
-
-
+		
+		/*
+		_directionvectors = new vec3[_numdirectionvectors]{
+			2.0f*normalize(_vertices[0] - _vertices[1]),
+			2.0f*normalize(_vertices[0] - _vertices[2]),
+			2.0f*normalize(_vertices[0] - _vertices[3]),
+			2.0f*normalize(_vertices[0] - _vertices[4])
+		};
+		*/
 	}
 
 	~RhombicDodecahedron()

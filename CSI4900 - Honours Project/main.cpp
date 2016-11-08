@@ -118,7 +118,8 @@ GLuint* g_bufferObjects;
 unordered_map <int, vector<vector<pair<edge, edge>>>> hashTable; //Stores hashes to speed up computations later
 
 GLuint total_triangles;
-
+GLuint total_polyhedra;
+GLuint total_crossections;
 /********************************/
 int currentHash = 0;
 int table[256];
@@ -334,6 +335,9 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
 			glEnd();
 
 		}
+
+		++total_crossections;
+
 	}
 			
 }
@@ -399,6 +403,8 @@ void recursiveFaceOrientedSpherePacking(SimplePolyhedra p, vec3 pos) {
 			recursiveFaceOrientedSpherePacking(p, pos + p._directionvectors[i]);
 			recursiveFaceOrientedSpherePacking(p, pos - p._directionvectors[i]);
 		}
+
+		++total_polyhedra;
 	}
 
 
@@ -493,15 +499,19 @@ void display(void) {
 	*/
 
 	total_triangles = 0;
+	total_crossections = 0;
+	total_polyhedra = 0;
 	SimplePolyhedra poly = RhombicDodecahedron();
 	
 	recursiveMarch(poly);
 
 	
 	
+	cout << "Counts: " << endl;
+	cout << "\t Number of polyhedra: " << total_polyhedra << endl;
+	cout << "\t Number of crosssections: " << total_crossections << endl;
+	cout << "\t Number of triangles: " << total_triangles << endl;
 	
-
-	cout << "Finish display" << endl;
 	// swap buffers
 	glutSwapBuffers();
 }

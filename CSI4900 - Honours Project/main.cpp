@@ -114,15 +114,31 @@ Camera g_camera;
 GLuint g_program;
 GLuint* g_bufferObjects;
 
+SimplePolyhedra g_poly = RhombicDodecahedron();
+
+
+
 
 unordered_map <int, vector<vector<pair<edge, edge>>>> hashTable; //Stores hashes to speed up computations later
 
 GLuint total_triangles;
 GLuint total_polyhedra;
 GLuint total_crossections;
+
+unordered_set<vec3> processedPositions;
+
 /********************************/
-int currentHash = 0;
-int table[256];
+
+template <GLfloat radius> GLfloat func_sphere(vec3) {
+
+
+	return 0.0f;
+}
+
+
+
+
+/********************************/
 
 void drawShape(SimplePolyhedra p, vec3 center) {
 
@@ -152,7 +168,7 @@ void drawShape(SimplePolyhedra p, vec3 center) {
 
 
 glm::vec3 interpolate(GLfloat isolevel, glm::vec3 p1, glm::vec3 p2, GLfloat valp1, GLfloat valp2) {
-	//Borrowed from http://paulbourke.net/geometry/polygonise/
+	//Formula from http://paulbourke.net/geometry/polygonise/
 	glm::vec3 p;
 
 	if (glm::abs(isolevel - valp1) < 0.00001)return(p1);
@@ -341,51 +357,10 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
 	}
 			
 }
-std::ofstream outfile; //Debugging stream
-unordered_set<vec3> processedPositions;
-
-
-void lincomb(SimplePolyhedra p, vec3 origin, int depth, GLint *linc) {
-
-	if (depth == 0) {
-
-		vec3 center = origin;
-
-		for (int d = 0; d < p._numdirectionvectors; ++d) {
-			center += (GLfloat) (linc[d]) * p._directionvectors[d];
-		}
-
-		
-		//outfile << "p " << center.x << " " << center.y << " " << center.z << endl;
-
-		//**TODO -- Poor solution needs to be properly analysed
-		if (processedPositions.find(center) != processedPositions.end()) {
-			//We have not already encountered this position
-			marchPolygon(p, center);
-			processedPositions.insert(center);
-			//drawShape(p, center);
-		}
-		
-		
-		
-	}
-	else {
-
-		//TODO Test for bounding box
-		int size = 6;
-		for (int i = -size; i <= size; ++i) {
-			linc[depth - 1] = i; //determines base case to be 0 otherwise we have 0-1
-			lincomb(p, origin, depth-1, linc);
-		}
-
-	}
-}
-
 
 void recursiveFaceOrientedSpherePacking(SimplePolyhedra p, vec3 pos) {
 
-	//check within bounding box
-
+	//Using an decision block to make clear the course of actions
 	if (abs(pos.x) > 10.0f || abs(pos.y) > 10.0f || abs(pos.z) > 10.0f) {
 		//We are not going to render this position
 		return;
@@ -413,83 +388,25 @@ void recursiveFaceOrientedSpherePacking(SimplePolyhedra p, vec3 pos) {
 }
 
 void recursiveMarch(SimplePolyhedra p) {
-	//SimplePolyhedra p should be a Cube or RhombicDodecahedron atm.
 
-
-	//outfile.open(p.label + " pos.txt");
-	processedPositions = unordered_set<vec3>();
-	//lincomb(p, vec3(0.0f, 0.0f, 0.0f), p._numdirectionvectors, new GLint[p._numdirectionvectors]);
-	
+	processedPositions = unordered_set<vec3>();	
 	recursiveFaceOrientedSpherePacking(p, vec3(0.0f, 0.0f, 0.0f));
-	//outfile.close();
-
+	
 }
 
-void marchingCubes() {
-
-	//Direction vectors of a cube
-	//This is an array s.t. you can tile 3d with a linear combination of these centers
-	glm::vec3 d[] = { glm::vec3(2.0f,0.0f,0.0f) ,glm::vec3(0.0f,2.0f,0.0f) ,glm::vec3(0.0f,0.0f,2.0f) };
-	
-	
-
-	int size = 6;
-	for (int i = -size; i < size; i++)
-		for (int j = -size; j < size; j++)
-			for (int k = -size; k < size; k++) {
-				
-				glm::vec3 center = (GLfloat)(i)*d[0] + (GLfloat)(j)* d[1] + (GLfloat)(k)* d[2];
-				
-				/*
-				glm::mat4 model = glm::mat4(1.0f);
-				model = glm::translate(model, center);
-				glUniformMatrix4fv(g_tfm.locM, 1, GL_FALSE, glm::value_ptr(model));
-				glutWireCube(2.0f);
-				*/
-				//March Cubes
-				//drawShape(Cube(), center);
-				marchPolygon(Cube(), center);
-
-			}
-				
-				
-			
-
-
-
-
-}
-
-
-
-
-
-/*********************************/
 /**
-* Display routine - vertex array object
+* Display routine 
 */
 void display(void) {
-	// Clear the window
-	glClear(GL_COLOR_BUFFER_BIT);
-	// Use glm to emulate fixed function pipeline
-	// Load identity
 	
-
-	//Direct camera using our coordinate's basis
+	glClear(GL_COLOR_BUFFER_BIT);	// Clear the window
+	
+	//Direct camera using the coordinate's basis
 	if (g_camera.left_drag) g_camera.updateCameraVectors(); //Don't update camera unless the camera is being moved
 	glm::mat4 View = glm::lookAt(g_camera.camera_eye, g_camera.camera_target, g_camera.camera_up);
 	glm::mat4 Model = glm::mat4(1.0f);
 
-	/*
-	string strTri = to_string(total_triangles);
-	glRasterPos2f(10, 10);
-	for (char c : strTri) {
-		glutBitmapCharacter(GLUT_BITMAP_9_BY_15, c);
-	}*/
-
-
-	// Update uniform for this drawing
-	
+	// Update uniform for this frame	
 	glUniformMatrix4fv(g_tfm.locV, 1, GL_FALSE, glm::value_ptr(View));
 	glUniformMatrix4fv(g_tfm.locM, 1, GL_FALSE, glm::value_ptr(Model));
 
@@ -501,9 +418,9 @@ void display(void) {
 	total_triangles = 0;
 	total_crossections = 0;
 	total_polyhedra = 0;
-	SimplePolyhedra poly = RhombicDodecahedron();
 	
-	recursiveMarch(poly);
+	
+	recursiveMarch(g_poly);
 
 	
 	
@@ -518,7 +435,7 @@ void display(void) {
 
 
 /**
-* Idle routine - rotate basic shape when we have
+* Idle routine
 * nothing else to do
 */
 void idleFunc() {
@@ -542,10 +459,6 @@ void keyboardFunc(unsigned char _key, int _x, int _y) {
 		// Reset camera to be on z axis looking at origin
 		g_camera = Camera();
 		break;
-	case 'i':
-	case 'I':
-		currentHash = (currentHash + 1);
-		cout << "CurrentHash: " << currentHash << " (" << bitset<14>(currentHash) << ")" << endl;
 	default:
 
 		break;
@@ -563,7 +476,9 @@ void specialKeyboardFunc(int _key, int _x, int _y) {
 	return;
 }
 
-// mouse movement callback
+/**
+* Mouse button routine
+*/
 void mouseFunc(int button, int state, int x, int y) {
 
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
@@ -579,13 +494,17 @@ void mouseFunc(int button, int state, int x, int y) {
 
 		glutPostRedisplay();
 	}
+	
 
 
 }
 
-// mouse button callback
+/**
+* Mouse movement routine
+*/
 void motionFunc(int x, int y) {
 	if (g_camera.left_drag) {
+		
 		g_camera.horizontal_rotation = (GLfloat)(g_camera.last_x - x) * 0.01f;
 		g_camera.vertical_rotation = (GLfloat)(y - g_camera.last_y) * 0.01f;
 
@@ -599,7 +518,7 @@ void motionFunc(int x, int y) {
 
 
 /**
-* OpenGL reshape function - main window
+* Reshape function - main window
 */
 void reshapeFunc(GLsizei _width, GLsizei _height) {
 	errorOut();
@@ -640,7 +559,7 @@ void reshapeFunc(GLsizei _width, GLsizei _height) {
 
 
 /**
-* OpenGL initialization - set the state machine
+* Initialization
 */
 void init(void) {
 	// darkgray background
@@ -746,7 +665,7 @@ int main(int argc, char** argv) {
 	init();
 
 	// Set up callback functions for key presses
-	glutKeyboardFunc(keyboardFunc); // Handles ascii symbols
+	glutKeyboardFunc(keyboardFunc); // Handles standard keys
 	glutSpecialFunc(specialKeyboardFunc); // Handles function keys
 
 	

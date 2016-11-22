@@ -70,7 +70,7 @@ struct WindowSize {
 	GLfloat d_height;
 	bool d_perspective;
 
-	WindowSize() : d_near(1.0f), d_far(10.0f),d_perspective(false),
+	WindowSize() : d_near(1.0f), d_far(40.0f),d_perspective(false),
 
 		d_widthPixel(512), d_width(30.0f),
 		d_heightPixel(512), d_height(30.0f)
@@ -95,7 +95,7 @@ struct Camera {
 		last_x(0), last_y(0),
 		vertical_rotation(0.0f), horizontal_rotation(0.0f),
 		camera_target(0.0f,0.0f,0.0f), 
-		camera_eye(0.0f,0.0f, -12.0f),
+		camera_eye(0.0f,0.0f, -15.0f),
 		camera_up(0.0f, 1.0f, 0.0f) {}
 
 
@@ -115,7 +115,7 @@ GLuint g_program;
 GLuint* g_bufferObjects;
 
 SimplePolyhedra g_poly = RhombicDodecahedron();
-
+GLint g_renderStyle = GL_TRIANGLES; //USE GL_TRIANGLES or GL_LINE_LOOP
 
 
 
@@ -129,13 +129,59 @@ unordered_set<vec3> processedPositions;
 
 /********************************/
 
-template <GLfloat radius> GLfloat func_sphere(vec3) {
+class Isosurface {
+	public:
+
+		virtual GLfloat operator()(vec3 v) { return false; }
+};
 
 
-	return 0.0f;
-}
+class isoSphere : public Isosurface{
+	private:
+		GLfloat radius_pow2;
+	public:
+		isoSphere(GLfloat r) : radius_pow2(r*r) {
 
+		}
 
+		GLfloat operator()(vec3 point) {
+			
+			GLfloat pointpos = dot(point, point);
+			
+			return pointpos - radius_pow2;
+		}
+
+};
+
+class isoCube : public Isosurface {
+private:
+	GLfloat length;
+public:
+	isoCube(GLfloat r) : length(r) {
+
+	}
+
+	GLfloat operator()(vec3 point) {
+		GLfloat minX = abs(point.x);
+		GLfloat minY = abs(point.y);
+		GLfloat minZ = abs(point.z);
+
+		if ( minX >= minY && minX >= minZ) {
+
+			return minX - length;
+		}
+		else if (minY >= minZ) {
+
+			return minY - length;
+		}
+		else {
+			return minZ - length;
+		}
+	}
+
+};
+
+Isosurface &mySurface = isoSphere(7.0f);
 
 
 /********************************/
@@ -167,18 +213,17 @@ void drawShape(SimplePolyhedra p, vec3 center) {
 }
 
 
-glm::vec3 interpolate(GLfloat isolevel, glm::vec3 p1, glm::vec3 p2, GLfloat valp1, GLfloat valp2) {
+glm::vec3 interpolate(glm::vec3 p1, glm::vec3 p2, GLfloat valp1, GLfloat valp2) {
 	//Formula from http://paulbourke.net/geometry/polygonise/
 	glm::vec3 p;
 
-	if (glm::abs(isolevel - valp1) < 0.00001)return(p1);
-	if (glm::abs(isolevel - valp2) < 0.00001)return(p2);
+	if (glm::abs(valp1) < 0.00001)return(p1);
+	if (glm::abs(valp2) < 0.00001)return(p2);
 	if (glm::abs(valp1 - valp2) < 0.00001)  return(p1);
 	
-	GLfloat mu = (isolevel - valp1) / (valp2 - valp1);
-	p.x = p1.x + mu * (p2.x - p1.x);
-	p.y = p1.y + mu * (p2.y - p1.y);
-	p.z = p1.z + mu * (p2.z - p1.z);
+	GLfloat mu = (-valp1) / (valp2 - valp1);
+	
+	p = p1 + mu * (p2 - p1);
 
 	return(p);
 
@@ -186,19 +231,17 @@ glm::vec3 interpolate(GLfloat isolevel, glm::vec3 p1, glm::vec3 p2, GLfloat valp
 }
 
 void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
-	
-	GLfloat isolevel = 100.0f;
+	Isosurface &isosurface = mySurface;
+
 	int vertHash = 0; //This is an  integer to track the vertices contained in the isosurface
-	
 	for (int i = 0; i < p._numverts; i++) {
 		//If vertex is within the isosurface
-		if (glm::dot(p._vertices[i] + center, p._vertices[i] + center) <= isolevel) {
+		if (isosurface(p._vertices[i] + center) <= 0.0f) {
 			vertHash = vertHash | 1 << i;
 		}
 	}
 	
 	int comp = (1<<(p._numverts)) - 1;
-	
 	//table[vertHash]++;
 	//Do the following when the cube is neither fully in or out of the sphere
 	if (vertHash != 0 && vertHash != comp) {
@@ -318,17 +361,17 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
 
 				a = p._vertices[crossedges.first.first] + center;
 				b = p._vertices[crossedges.first.second] + center;
-				centroid += interpolate(isolevel, a, b, glm::dot(a, a), glm::dot(b, b));
+				centroid += interpolate(a, b, isosurface(a), isosurface(b));
 
 
 				a = p._vertices[crossedges.second.first] + center;
 				b = p._vertices[crossedges.second.second] + center;
-				centroid += interpolate(isolevel, a, b, glm::dot(a, a), glm::dot(b, b));
+				centroid += interpolate(a, b, isosurface(a), isosurface(b));
 			}
 
 			centroid /= (GLfloat)(2 * cut.size());
 
-			glBegin(GL_TRIANGLES); //USE GL_TRIANGLES or GL_LINE_LOOP
+			glBegin(g_renderStyle);
 
 			for (pair<edge, edge> triangle : cut) {
 
@@ -338,21 +381,23 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
 
 				a1 = p._vertices[triangle.first.first] + center;
 				b1 = p._vertices[triangle.first.second] + center;
-				glVertex3fv(glm::value_ptr(interpolate(isolevel, a1, b1, glm::dot(a1, a1), glm::dot(b1, b1))));
+				glVertex3fv(glm::value_ptr(interpolate(a1, b1, isosurface(a1), isosurface(b1))));
 
 
 				a2 = p._vertices[triangle.second.first] + center;
 				b2 = p._vertices[triangle.second.second] + center;
-				glVertex3fv(glm::value_ptr(interpolate(isolevel, a2, b2, glm::dot(a2, a2), glm::dot(b2, b2))));
+				glVertex3fv(glm::value_ptr(interpolate(a2, b2, isosurface(a2), isosurface(b2))));
+
+				++total_triangles;
 
 			}
 
-			++total_triangles;
+			
 			glEnd();
-
+			++total_crossections;
 		}
 
-		++total_crossections;
+		
 
 	}
 			
@@ -360,8 +405,9 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
 
 void recursiveFaceOrientedSpherePacking(SimplePolyhedra p, vec3 pos) {
 
+
 	//Using an decision block to make clear the course of actions
-	if (abs(pos.x) > 10.0f || abs(pos.y) > 10.0f || abs(pos.z) > 10.0f) {
+	if (abs(pos.x) > 15.0f || abs(pos.y) > 15.0f || abs(pos.z) > 15.0f) {
 		//We are not going to render this position
 		return;
 	}
@@ -418,7 +464,6 @@ void display(void) {
 	total_triangles = 0;
 	total_crossections = 0;
 	total_polyhedra = 0;
-	
 	
 	recursiveMarch(g_poly);
 

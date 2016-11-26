@@ -142,9 +142,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <None Include="mri.info" />
+    <None Include="mri.raw" />
     <None Include="packages.config" />
-    <None Include="planet.fs" />
-    <None Include="planet.vs" />
+    <None Include="march.fs" />
+    <None Include="march.vs" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />

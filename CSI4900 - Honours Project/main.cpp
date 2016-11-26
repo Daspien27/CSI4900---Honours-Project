@@ -114,7 +114,7 @@ Camera g_camera;
 GLuint g_program;
 GLuint* g_bufferObjects;
 
-SimplePolyhedra g_poly = RhombicDodecahedron();
+SimplePolyhedra g_poly = Cube();
 GLint g_renderStyle = GL_TRIANGLES; //USE GL_TRIANGLES or GL_LINE_LOOP
 
 
@@ -152,7 +152,6 @@ class isoSphere : public Isosurface{
 		}
 
 };
-
 class isoCube : public Isosurface {
 private:
 	GLfloat length;
@@ -181,7 +180,70 @@ public:
 
 };
 
-Isosurface &mySurface = isoSphere(7.0f);
+class isoMRI : public Isosurface {
+//Based on volexample file, for now
+	#define NX 200
+	#define NY 160
+	#define NZ 160
+	private:
+		vector<vector<vector<short int>>> data;
+		short int isolevel;
+	public:
+		isoMRI(int iso) {
+			//Taken word for word from my volexample.c
+			isolevel = iso;
+
+			FILE *fptr;
+
+			fprintf(stderr, "Reading data ...\n");
+			if ((fptr = fopen("mri.raw", "rb")) == NULL) {
+				fprintf(stderr, "File open failed\n");
+				exit(-1);
+			}
+			
+			int c;
+			short int themax = 0, themin = 255;
+			data.resize(NZ);
+			for (int k = 0; k<NZ; k++) {
+				data[k].resize(NY);
+				for (int j = 0; j<NY; j++) {
+					data[k][j].resize(NX);
+					for (int i = 0; i<NX; i++) {
+						
+						if ((c = fgetc(fptr)) == EOF) {
+							fprintf(stderr, "Unexpected end of file\n");
+							exit(-1);
+						}
+						data[k][j][i] = c;
+
+						if (c > themax)
+							themax = c;
+						if (c < themin)
+							themin = c;
+					}
+				}
+			}
+
+			fclose(fptr);
+			fprintf(stderr, "Volumetric data range: %d -> %d\n", themin, themax);
+
+		}
+
+
+		GLfloat operator()(vec3 point) {
+			
+			int z = NZ/2+(int)floor(point.z);
+			int y = NY/2+(int)floor(point.y);
+			int x = NX/2+(int)floor(point.x);
+
+			if (z<0 || y<0 || x<0 || z>NZ || y>NY || x>NX) {
+				//return -999.0f;
+			}
+			short int level = data[z][y][x];
+			return ((GLfloat) (isolevel - level));
+		}
+};
+Isosurface &mySurface = isoCube(7.0f);
 
 
 /********************************/
@@ -230,8 +292,8 @@ glm::vec3 interpolate(glm::vec3 p1, glm::vec3 p2, GLfloat valp1, GLfloat valp2) 
 	//return (p1+p2)/2.0f; //midpoint formula
 }
 
-void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
-	Isosurface &isosurface = mySurface;
+void marchPolygon(SimplePolyhedra p, glm::vec3 center, Isosurface& isosurface) {
+	
 
 	int vertHash = 0; //This is an  integer to track the vertices contained in the isosurface
 	for (int i = 0; i < p._numverts; i++) {
@@ -375,18 +437,31 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
 
 			for (pair<edge, edge> triangle : cut) {
 
-				glVertex3fv(glm::value_ptr(centroid));
+				
 
-				glm::vec3 a1, a2, b1, b2;
+				glm::vec3 a1, a2, b1, b2, v1, v2;
 
 				a1 = p._vertices[triangle.first.first] + center;
 				b1 = p._vertices[triangle.first.second] + center;
-				glVertex3fv(glm::value_ptr(interpolate(a1, b1, isosurface(a1), isosurface(b1))));
+				v1 = interpolate(a1, b1, isosurface(a1), isosurface(b1));
+
+				
 
 
 				a2 = p._vertices[triangle.second.first] + center;
 				b2 = p._vertices[triangle.second.second] + center;
-				glVertex3fv(glm::value_ptr(interpolate(a2, b2, isosurface(a2), isosurface(b2))));
+				v2 = interpolate(a2, b2, isosurface(a2), isosurface(b2));
+				glVertex3fv(glm::value_ptr(v2));
+				
+				GLfloat greyscale = (isosurface(centroid) + isosurface(v1) + isosurface(v2)) / (3.0f*256);
+			
+				vec3 middle = (centroid + v1 + v2) / 3.0f;
+				glColor3f(middle.x, middle.y, middle.z);
+				
+				glVertex3fv(glm::value_ptr(centroid));
+				glVertex3fv(glm::value_ptr(v1));
+				glVertex3fv(glm::value_ptr(v2));
+
 
 				++total_triangles;
 
@@ -403,11 +478,11 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center) {
 			
 }
 
-void recursiveFaceOrientedSpherePacking(SimplePolyhedra p, vec3 pos) {
+void recursiveFaceOrientedSpherePacking(SimplePolyhedra p, vec3 pos, Isosurface& surface) {
 
 
 	//Using an decision block to make clear the course of actions
-	if (abs(pos.x) > 15.0f || abs(pos.y) > 15.0f || abs(pos.z) > 15.0f) {
+	if (abs(pos.x) > 10.0f || abs(pos.y) > 10.0f || abs(pos.z) > 10.0f) {
 		//We are not going to render this position
 		return;
 	}
@@ -416,13 +491,13 @@ void recursiveFaceOrientedSpherePacking(SimplePolyhedra p, vec3 pos) {
 		return;
 	}
 	else {
-		marchPolygon(p, pos);
+		marchPolygon(p, pos, surface);
 		processedPositions.insert(pos);
 		//drawShape(p, pos);
 
 		for (int i = 0; i < p._numdirectionvectors; ++i) {
-			recursiveFaceOrientedSpherePacking(p, pos + p._directionvectors[i]);
-			recursiveFaceOrientedSpherePacking(p, pos - p._directionvectors[i]);
+			recursiveFaceOrientedSpherePacking(p, pos + p._directionvectors[i],surface);
+			recursiveFaceOrientedSpherePacking(p, pos - p._directionvectors[i],surface);
 		}
 
 		++total_polyhedra;
@@ -433,10 +508,10 @@ void recursiveFaceOrientedSpherePacking(SimplePolyhedra p, vec3 pos) {
 
 }
 
-void recursiveMarch(SimplePolyhedra p) {
+void recursiveMarch(SimplePolyhedra p, Isosurface& surface) {
 
 	processedPositions = unordered_set<vec3>();	
-	recursiveFaceOrientedSpherePacking(p, vec3(0.0f, 0.0f, 0.0f));
+	recursiveFaceOrientedSpherePacking(p, vec3(0.0f, 0.0f, 0.0f),surface);
 	
 }
 
@@ -445,13 +520,12 @@ void recursiveMarch(SimplePolyhedra p) {
 */
 void display(void) {
 	
-	glClear(GL_COLOR_BUFFER_BIT);	// Clear the window
-	
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	// Clear the window
 	//Direct camera using the coordinate's basis
 	if (g_camera.left_drag) g_camera.updateCameraVectors(); //Don't update camera unless the camera is being moved
 	glm::mat4 View = glm::lookAt(g_camera.camera_eye, g_camera.camera_target, g_camera.camera_up);
 	glm::mat4 Model = glm::mat4(1.0f);
-
+	Model = translate(Model, vec3(-7.0f,0.0f,0.0f));
 	// Update uniform for this frame	
 	glUniformMatrix4fv(g_tfm.locV, 1, GL_FALSE, glm::value_ptr(View));
 	glUniformMatrix4fv(g_tfm.locM, 1, GL_FALSE, glm::value_ptr(Model));
@@ -465,9 +539,13 @@ void display(void) {
 	total_crossections = 0;
 	total_polyhedra = 0;
 	
-	recursiveMarch(g_poly);
+	recursiveMarch(g_poly, mySurface);
 
-	
+	Isosurface& otherSurface = isoSphere(8.0f);
+
+	Model = glm::mat4(1.0f);
+	glUniformMatrix4fv(g_tfm.locM, 1, GL_FALSE, glm::value_ptr(Model));
+	recursiveMarch(g_poly, otherSurface);
 	
 	cout << "Counts: " << endl;
 	cout << "\t Number of polyhedra: " << total_polyhedra << endl;
@@ -648,12 +726,12 @@ void init(void) {
 	vector<GLuint> sHandles;
 	GLuint handle;
 	Shader shader;
-	if (!shader.load("planet.vs", GL_VERTEX_SHADER)) {
+	if (!shader.load("march.vs", GL_VERTEX_SHADER)) {
 		shader.installShader(handle, GL_VERTEX_SHADER);
 		Shader::compile(handle);
 		sHandles.push_back(handle);
 	}
-	if (!shader.load("planet.fs", GL_FRAGMENT_SHADER)) {
+	if (!shader.load("march.fs", GL_FRAGMENT_SHADER)) {
 		shader.installShader(handle, GL_FRAGMENT_SHADER);
 		Shader::compile(handle);
 		sHandles.push_back(handle);
@@ -689,7 +767,7 @@ int main(int argc, char** argv) {
 	glutInit(&argc, argv);
 	// Set the glut state
 	// Double buffering and RGB color 
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
 
 	// Set-up the glut OpenGL window
 	// glut's coordinate system has origin at top-left corner

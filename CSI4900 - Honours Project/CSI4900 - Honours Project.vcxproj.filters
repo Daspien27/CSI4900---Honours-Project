@@ -19,10 +19,16 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="planet.vs">
+    <None Include="mri.info">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="mri.raw">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="march.fs">
       <Filter>Shader Files</Filter>
     </None>
-    <None Include="planet.fs">
+    <None Include="march.vs">
       <Filter>Shader Files</Filter>
     </None>
   </ItemGroup>

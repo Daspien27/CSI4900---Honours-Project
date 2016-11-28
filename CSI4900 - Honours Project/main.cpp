@@ -26,6 +26,7 @@
 #include <glm/gtx/hash.hpp>
 #include "shader.h"
 #include "Polyhedra.h"
+#include "light.h"
 /** Global variables */
 
 using namespace std;
@@ -52,9 +53,9 @@ struct Attributes {
 
 	GLint locPos;
 	GLint locNorm;
-	GLint locColor;
+	GLint locCol;
 	GLint locTexture;
-	Attributes() : locPos(-1), locNorm(-1), locColor(-1), locTexture(-1) {}
+	Attributes() : locPos(-1), locNorm(-1), locCol(-1), locTexture(-1) {}
 };
 Attributes g_attrib;
 
@@ -111,8 +112,23 @@ struct Camera {
 };
 Camera g_camera;
 
+/*Storage for a Model's Buffers*/
+struct ModelBuffers {
+	GLuint vao;
+
+	GLuint vbo;
+	vector<glm::vec3> vertices;
+	
+	//TODO: look integers normalized integers for normals
+	GLuint nbo;
+	vector<glm::vec3> normals;
+
+	GLuint cbo;
+	vector<glm::vec3> colours;
+};
+ModelBuffers g_buffers;
+
 GLuint g_program;
-GLuint* g_bufferObjects;
 
 SimplePolyhedra g_poly = Cube();
 GLint g_renderStyle = GL_TRIANGLES; //USE GL_TRIANGLES or GL_LINE_LOOP
@@ -134,7 +150,6 @@ class Isosurface {
 
 		virtual GLfloat operator()(vec3 v) { return false; }
 };
-
 
 class isoSphere : public Isosurface{
 	private:
@@ -179,7 +194,6 @@ public:
 	}
 
 };
-
 class isoMRI : public Isosurface {
 //Based on volexample file, for now
 	#define NX 200
@@ -247,6 +261,14 @@ Isosurface &mySurface = isoCube(7.0f);
 
 
 /********************************/
+
+
+// Lighting
+GLint g_cLight = 0;
+LightArray g_lightArray;
+GLfloat g_lightAngle = 0.0f;
+
+
 
 void drawShape(SimplePolyhedra p, vec3 center) {
 
@@ -433,11 +455,8 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center, Isosurface& isosurface) {
 
 			centroid /= (GLfloat)(2 * cut.size());
 
-			glBegin(g_renderStyle);
 
 			for (pair<edge, edge> triangle : cut) {
-
-				
 
 				glm::vec3 a1, a2, b1, b2, v1, v2;
 
@@ -445,30 +464,39 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center, Isosurface& isosurface) {
 				b1 = p._vertices[triangle.first.second] + center;
 				v1 = interpolate(a1, b1, isosurface(a1), isosurface(b1));
 
-				
-
-
 				a2 = p._vertices[triangle.second.first] + center;
 				b2 = p._vertices[triangle.second.second] + center;
 				v2 = interpolate(a2, b2, isosurface(a2), isosurface(b2));
-				glVertex3fv(glm::value_ptr(v2));
-				
-				GLfloat greyscale = (isosurface(centroid) + isosurface(v1) + isosurface(v2)) / (3.0f*256);
 			
-				vec3 middle = (centroid + v1 + v2) / 3.0f;
-				glColor3f(middle.x, middle.y, middle.z);
+				g_buffers.vertices.push_back(centroid);
+				g_buffers.vertices.push_back(v1);
+				g_buffers.vertices.push_back(v2);
 				
+				vec3 d1 = v1 - centroid;
+				vec3 d2 = v2 - centroid;
+
+				vec3 n = -1.0f * cross(v1, v2);
+
+				g_buffers.normals.push_back(n);
+				g_buffers.normals.push_back(n);
+				g_buffers.normals.push_back(n);
+				
+
+
+				g_buffers.colours.push_back(glm::vec3(1.0f, 0.0f, 0.0f));
+				g_buffers.colours.push_back(glm::vec3(1.0f, 0.0f, 0.0f));
+				g_buffers.colours.push_back(glm::vec3(1.0f, 0.0f, 0.0f));
+				
+				
+				/*
+				glBegin(GL_TRIANGLES);
 				glVertex3fv(glm::value_ptr(centroid));
 				glVertex3fv(glm::value_ptr(v1));
 				glVertex3fv(glm::value_ptr(v2));
-
-
+				glEnd();
+				*/
 				++total_triangles;
-
 			}
-
-			
-			glEnd();
 			++total_crossections;
 		}
 
@@ -509,10 +537,44 @@ void recursiveFaceOrientedSpherePacking(SimplePolyhedra p, vec3 pos, Isosurface&
 }
 
 void recursiveMarch(SimplePolyhedra p, Isosurface& surface) {
+	
+	g_buffers.vertices.clear();
+	g_buffers.normals.clear();
+	g_buffers.colours.clear();
 
 	processedPositions = unordered_set<vec3>();	
 	recursiveFaceOrientedSpherePacking(p, vec3(0.0f, 0.0f, 0.0f),surface);
+
+	//After we have recieved our vertices we will process them in the buffers
+
+	//Vertex Buffer
+	glBindBuffer(GL_ARRAY_BUFFER, g_buffers.vbo);
+	glBufferData(GL_ARRAY_BUFFER,
+		sizeof(glm::vec3) * static_cast<GLint>(g_buffers.vertices.size()),
+		&g_buffers.vertices[0], GL_STATIC_DRAW);
+	glVertexAttribPointer(g_attrib.locPos, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(g_attrib.locPos);
 	
+	//Normal Buffer
+	glBindBuffer(GL_ARRAY_BUFFER, g_buffers.nbo);
+	glBufferData(GL_ARRAY_BUFFER,
+		sizeof(glm::vec3) * static_cast<GLint>(g_buffers.normals.size()),
+		&g_buffers.normals[0], GL_STATIC_DRAW);
+	glVertexAttribPointer(g_attrib.locNorm, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(g_attrib.locNorm);
+	
+	//Colour Buffer
+	glBindBuffer(GL_ARRAY_BUFFER, g_buffers.cbo);
+	glBufferData(GL_ARRAY_BUFFER,
+		sizeof(glm::vec3) * static_cast<GLint>(g_buffers.colours.size()),
+		&g_buffers.colours[0], GL_STATIC_DRAW);
+	glVertexAttribPointer(g_attrib.locCol, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(g_attrib.locCol);
+	
+
+
+	//Draw the buffers
+	glDrawArrays(g_renderStyle, 0, g_buffers.vertices.size());
 }
 
 /**
@@ -525,15 +587,23 @@ void display(void) {
 	if (g_camera.left_drag) g_camera.updateCameraVectors(); //Don't update camera unless the camera is being moved
 	glm::mat4 View = glm::lookAt(g_camera.camera_eye, g_camera.camera_target, g_camera.camera_up);
 	glm::mat4 Model = glm::mat4(1.0f);
-	Model = translate(Model, vec3(-7.0f,0.0f,0.0f));
 	// Update uniform for this frame	
 	glUniformMatrix4fv(g_tfm.locV, 1, GL_FALSE, glm::value_ptr(View));
 	glUniformMatrix4fv(g_tfm.locM, 1, GL_FALSE, glm::value_ptr(Model));
 
+	//Taken from A3 from CSI4130 WINTER2016
+	LightSource light = g_lightArray.get(g_cLight);
+	std::ostringstream os;
+	os << "lightPosition[" << g_cLight << "]";
+	std::string varName = os.str();
+	GLuint locLightPos = glGetUniformLocation(g_program, varName.c_str());
+	glm::vec4 lightPos =
+		glm::vec4(cos(g_lightAngle)*g_winSize.d_width,
+			sin(g_lightAngle)*g_winSize.d_width,
+			20.0f, // * static_cast<GLfloat>( !light.d_pointLight ), 
+			static_cast<GLfloat>(light.d_pointLight));
+	glProgramUniform4fv(g_program, locLightPos, 1, glm::value_ptr(lightPos));
 
-	/**TODO
-		Decide when to choose isosurface to be rendered
-	*/
 
 	total_triangles = 0;
 	total_crossections = 0;
@@ -541,11 +611,6 @@ void display(void) {
 	
 	recursiveMarch(g_poly, mySurface);
 
-	Isosurface& otherSurface = isoSphere(8.0f);
-
-	Model = glm::mat4(1.0f);
-	glUniformMatrix4fv(g_tfm.locM, 1, GL_FALSE, glm::value_ptr(Model));
-	recursiveMarch(g_poly, otherSurface);
 	
 	cout << "Counts: " << endl;
 	cout << "\t Number of polyhedra: " << total_polyhedra << endl;
@@ -687,6 +752,8 @@ void reshapeFunc(GLsizei _width, GLsizei _height) {
 void init(void) {
 	// darkgray background
 	glClearColor(0.4f, 0.4f, 0.4f, 0.0f);
+	glEnable(GL_DEPTH_TEST);
+	
 	// Point size to something visible
 	glPointSize(2.0f);
 
@@ -699,29 +766,7 @@ void init(void) {
 		exit(-1);
 	}
 
-	
-	// Generate a VAO
-	GLuint vao;
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
 
-	g_bufferObjects = new GLuint[1];
-
-	glGenBuffers(1, g_bufferObjects);
-
-	GLint size = 1; //Dummy Size
-	glm::vec4 vert = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f); //Dummy array
-	
-	glBindBuffer(GL_ARRAY_BUFFER, g_bufferObjects[0]);
-	glBufferData(GL_ARRAY_BUFFER,
-		sizeof(glm::vec4) * size,
-		&vert, GL_STATIC_DRAW);
-	
-	// pointer into the array of vertices which is now in the VAO
-	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(0);
-	
-	
 	// Load shaders
 	vector<GLuint> sHandles;
 	GLuint handle;
@@ -742,13 +787,28 @@ void init(void) {
 
 	// Activate program in order to be able to set uniforms 
 	glUseProgram(g_program);
-	
+	// vertex attributes
+	g_attrib.locPos = glGetAttribLocation(g_program, "position");
+	g_attrib.locNorm = glGetAttribLocation(g_program, "normal");
+	g_attrib.locCol = glGetAttribLocation(g_program, "colour");
 	// find the locations of our uniforms and store them in a global structure for later access
 	g_tfm.locM = glGetUniformLocation(g_program, "ModelMatrix");
 	g_tfm.locV = glGetUniformLocation(g_program, "ViewMatrix");
 	g_tfm.locP = glGetUniformLocation(g_program, "ProjectionMatrix");
 	
+	// Generate a VAO
+	glGenVertexArrays(1, &g_buffers.vao);
+	glBindVertexArray(g_buffers.vao);
 
+	//Vertex Buffer
+	glGenBuffers(1, &g_buffers.vbo);
+	glGenBuffers(1, &g_buffers.nbo);
+	glGenBuffers(1, &g_buffers.cbo);
+	
+	//Just one light source
+	g_lightArray.append(LightSource());
+	g_lightArray.setLights(g_program);
+	
 	// set the projection matrix with a uniform
 	glm::mat4 Projection = glm::ortho(-g_winSize.d_width / 2.0f, g_winSize.d_width / 2.0f,
 		-g_winSize.d_height / 2.0f, g_winSize.d_height / 2.0f);

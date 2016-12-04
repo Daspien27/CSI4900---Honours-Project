@@ -1,8 +1,9 @@
-#pragma once
-
 #ifndef POLYHEDRA_H_
 #define POLYHEDRA_H_
 
+
+#include <GL/glew.h>
+#include <GL/glut.h>
 #include <cstdlib> //Remove after
 #include <glm/glm.hpp>
 #include <iostream>
@@ -10,6 +11,7 @@
 #include <list>
 #include <string>
 #include <unordered_set>
+#include <assert.h>
 using namespace glm;
 
 
@@ -19,31 +21,28 @@ class SimplePolyhedra
 
 public:
 	const std::string label;
-
-	//Vertices
 	const int _numverts;
-	vec3 *_vertices;
-
-	//Edge List
 	const int _numedges;
+	const int _numfaces;
+	const int _numdirectionvectors;
+	const GLfloat uniformScaling;
+protected:
+	//Vertices
+	vec3 *_vertices;
+	//Edge List
 	int *_edges;
 	//vector< list<int> > _edgeAdjancencyList;
-
 	//Faces
-	const int _numfaces;
 	int *_faces;
 	//vector< unordered_set<int> > _faceSets;
-
 	//Direction Vectors
-	const int _numdirectionvectors;
 	vec3 *_directionvectors;
-
 public:
-	SimplePolyhedra() : _numverts(0), _numedges(0), _numfaces(0), _numdirectionvectors(0), label("SimplePolyhedra"){
+	SimplePolyhedra() : _numverts(0), _numedges(0), _numfaces(0), _numdirectionvectors(0), label("SimplePolyhedra"), uniformScaling(1.0f){
 
 
 	}
-	SimplePolyhedra(int nverts, int nedges, int nfaces, int ndirectionv, std::string label) : _numverts(nverts),_numedges(nedges), _numfaces(nfaces), _numdirectionvectors(ndirectionv), label(label){
+	SimplePolyhedra(int nverts, int nedges, int nfaces, int ndirectionv, std::string label, GLfloat scaling) : _numverts(nverts),_numedges(nedges), _numfaces(nfaces), _numdirectionvectors(ndirectionv), label(label), uniformScaling(scaling){
 			
 	}
 	~SimplePolyhedra()
@@ -56,6 +55,26 @@ public:
 	}
 
 	
+	inline vec3 getVertice(int i) {
+		assert(i >= 0 && i <= _numvertices);
+		return uniformScaling * _vertices[i];
+	}
+
+	inline int getEdge(int i) {
+		assert(i >= 0 && i <= _numverts);
+		return _edges[i];
+	}
+
+	inline int getFace(int i) {
+		assert(i >= 0 && i <= _numverts);
+		return _faces[i];
+	}
+
+	inline vec3 getDirectionVector(int i) {
+		assert(i >= 0 && i <= _numdirectionvectors);
+		return uniformScaling * _directionvectors[i];
+	}
+	
 };
 
 class Cube : public SimplePolyhedra
@@ -63,9 +82,10 @@ class Cube : public SimplePolyhedra
 protected:
 	
 public:
-	Cube() : SimplePolyhedra(8, 12, 6, 3, "Cube") {
+	Cube(GLfloat scaling) : SimplePolyhedra(8, 12, 6, 3, "Cube",scaling) {
 
-		_vertices = new vec3[_numverts]{ vec3(-1.0f,-1.0f,-1.0f),
+		_vertices = new vec3[_numverts]{ 
+			vec3(-1.0f,-1.0f,-1.0f),
 			vec3(-1.0f,-1.0f,1.0f),
 			vec3(1.0f,-1.0f,1.0f),
 			vec3(1.0f,-1.0f,-1.0f),
@@ -101,7 +121,7 @@ public:
 
 
 		_faces = new int[_numverts] {
-			0b00001111,
+				0b00001111,
 				0b00110011,
 				0b01100110,
 				0b11001100,
@@ -127,6 +147,7 @@ public:
 
 	}
 
+	//Cube() : Cube(1.0f) {}
 
 	~Cube()
 	{
@@ -136,13 +157,77 @@ public:
 
 };
 
+class HexagonalPrism : public SimplePolyhedra
+{
+protected:
 
+public:
+	HexagonalPrism(GLfloat scaling) : SimplePolyhedra(8, 12, 6, 3, "HexagonalPrism", scaling) {
+
+		_vertices = new vec3[_numverts]{
+			vec3(-1.0f,-1.0f,-1.0f),
+			vec3(-1.0f,-1.0f,1.0f),
+			vec3(1.0f,-1.0f,1.0f),
+			vec3(1.0f,-1.0f,-1.0f),
+			vec3(-1.0f,1.0f,-1.0f),
+			vec3(-1.0f,1.0f,1.0f),
+			vec3(-1.0f,-1.0f,-1.0f),
+			vec3(-1.0f,-1.0f,1.0f),
+			vec3(1.0f,-1.0f,1.0f),
+			vec3(1.0f,-1.0f,-1.0f),
+			vec3(-1.0f,1.0f,-1.0f),
+			vec3(-1.0f,1.0f,1.0f),
+		};
+
+
+
+		_edges = new int[_numverts] {
+			0b00011010,
+				0b00100101,
+				0b01001010,
+				0b10000101,
+				0b10100001,
+				0b01010010,
+				0b10100100,
+				0b01011000,
+		};
+
+
+		_faces = new int[_numverts] {
+			0b00001111,
+				0b00110011,
+				0b01100110,
+				0b11001100,
+				0b10011001,
+				0b11110000
+
+		};
+	
+
+		_directionvectors = new vec3[_numdirectionvectors]{
+			vec3(2.0f,0.0f,0.0f),
+			vec3(0.0f,2.0f,0.0f),
+			vec3(0.0f,0.0f,2.0f)
+		};
+
+
+	}
+
+	
+
+	~HexagonalPrism()
+	{
+
+	}
+
+
+};
 class RhombicDodecahedron : public SimplePolyhedra
 {
 protected:
 
 public:
-	RhombicDodecahedron() : SimplePolyhedra(14, 24, 12, 6, "RhombicDodecahedra") {
+	RhombicDodecahedron(GLfloat scaling) : SimplePolyhedra(14, 24, 12, 6, "RhombicDodecahedra", scaling) {
 
 		_vertices = new vec3[_numverts]{
 			vec3(0.0f, 2.0f, 0.0f),
@@ -225,6 +310,7 @@ public:
 		};
 		*/
 	}
+	//RhombicDodecahedron(): RhombicDodecahedron(1.0f) { }
 
 	~RhombicDodecahedron()
 	{

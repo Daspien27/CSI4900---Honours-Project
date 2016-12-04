@@ -31,19 +31,21 @@ void main() {
   vec3 EVec = normalize(eyeFrag);
 
   float distanceLight = length(lightFrag.xyz);
-
+  
   float attenuation = 1.0 / 
     (lights[0].constant_attenuation +
      lights[0].linear_attenuation * distanceLight +
      lights[0].quadratic_attenuation * distanceLight * distanceLight);
-
+  
+  
   // ambient term
   vec4 ambient =  colourVertFrag * lights[0].ambient;
 
   // diffuse term
-  float dotNL = max(0.0,dot(NVec,LVec)); //max(-dot(NVec,LVec),dot(NVec,LVec));
-  vec4 diffuse = colourVertFrag * lights[0].diffuse * dotNL;
+  float dotNL = max(dot(NVec,LVec),-dot(NVec,LVec));//max(0,dot(NVec,LVec)); //
+  vec4 diffuse = dotNL* lights[0].diffuse * colourVertFrag;
 
+  
   // spot light
   float spot_attenuation = 1.0;
   float dotSV = dot(-LVec,normalize(lights[0].spot_direction));
@@ -52,9 +54,15 @@ void main() {
   } else {
     spot_attenuation = pow(dotSV,lights[0].spot_exponent);
   }
-
-	// colour
-	colour = attenuation * spot_attenuation * diffuse * colourVertFrag;
-	colour += ambient;
-
+  
+  // colour
+  //colour = attenuation * spot_attenuation * diffuse;
+ 
+  
+  colour = diffuse;
+  //colour = colourVertFrag;
+  colour += ambient;
+  //colour*=sin(posFrag);
+  //colour = dot(normalize(vec3(posFrag)),LVec)*colourVertFrag ;
+  //colour=posFrag;
 }

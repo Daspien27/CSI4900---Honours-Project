@@ -154,7 +154,9 @@
     <ClCompile Include="shader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Isosurface.h" />
     <ClInclude Include="light.h" />
+    <ClInclude Include="main.h" />
     <ClInclude Include="Polyhedra.h" />
     <ClInclude Include="shader.h" />
   </ItemGroup>

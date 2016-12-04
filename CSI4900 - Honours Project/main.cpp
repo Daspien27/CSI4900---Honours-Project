@@ -27,6 +27,8 @@
 #include "shader.h"
 #include "Polyhedra.h"
 #include "light.h"
+#include "Isosurface.h"
+#include "main.h"
 /** Global variables */
 
 using namespace std;
@@ -71,10 +73,10 @@ struct WindowSize {
 	GLfloat d_height;
 	bool d_perspective;
 
-	WindowSize() : d_near(1.0f), d_far(40.0f),d_perspective(false),
+	WindowSize() : d_near(1.0f), d_far(400.0f),d_perspective(false),
 
-		d_widthPixel(512), d_width(30.0f),
-		d_heightPixel(512), d_height(30.0f)
+		d_widthPixel(512), d_width(40.0f),
+		d_heightPixel(512), d_height(40.0f)
 	{}
 };
 WindowSize g_winSize;
@@ -96,7 +98,7 @@ struct Camera {
 		last_x(0), last_y(0),
 		vertical_rotation(0.0f), horizontal_rotation(0.0f),
 		camera_target(0.0f,0.0f,0.0f), 
-		camera_eye(0.0f,0.0f, -15.0f),
+		camera_eye(0.0f,0.0f, -50.0f),
 		camera_up(0.0f, 1.0f, 0.0f) {}
 
 
@@ -130,7 +132,14 @@ ModelBuffers g_buffers;
 
 GLuint g_program;
 
-SimplePolyhedra g_poly = Cube();
+
+GLfloat scalingFactor =1.0f;
+GLint threshold = 128;
+
+glm::vec3 origin = vec3(0.0f, 0.0f, 0.0f); //Offsets the center of the marching polyhedra
+SimplePolyhedra g_poly = RhombicDodecahedron(scalingFactor);
+
+Isosurface& g_mySurface = isoMRI(threshold);
 GLint g_renderStyle = GL_TRIANGLES; //USE GL_TRIANGLES or GL_LINE_LOOP
 
 
@@ -141,126 +150,13 @@ GLuint total_triangles;
 GLuint total_polyhedra;
 GLuint total_crossections;
 
-unordered_set<vec3> processedPositions;
 
-/********************************/
-
-class Isosurface {
-	public:
-
-		virtual GLfloat operator()(vec3 v) { return false; }
-};
-
-class isoSphere : public Isosurface{
-	private:
-		GLfloat radius_pow2;
-	public:
-		isoSphere(GLfloat r) : radius_pow2(r*r) {
-
-		}
-
-		GLfloat operator()(vec3 point) {
-			
-			GLfloat pointpos = dot(point, point);
-			
-			return pointpos - radius_pow2;
-		}
-
-};
-class isoCube : public Isosurface {
-private:
-	GLfloat length;
-public:
-	isoCube(GLfloat r) : length(r) {
-
-	}
-
-	GLfloat operator()(vec3 point) {
-		GLfloat minX = abs(point.x);
-		GLfloat minY = abs(point.y);
-		GLfloat minZ = abs(point.z);
-
-		if ( minX >= minY && minX >= minZ) {
-
-			return minX - length;
-		}
-		else if (minY >= minZ) {
-
-			return minY - length;
-		}
-		else {
-			return minZ - length;
-		}
-	}
-
-};
-class isoMRI : public Isosurface {
-//Based on volexample file, for now
-	#define NX 200
-	#define NY 160
-	#define NZ 160
-	private:
-		vector<vector<vector<short int>>> data;
-		short int isolevel;
-	public:
-		isoMRI(int iso) {
-			//Taken word for word from my volexample.c
-			isolevel = iso;
-
-			FILE *fptr;
-
-			fprintf(stderr, "Reading data ...\n");
-			if ((fptr = fopen("mri.raw", "rb")) == NULL) {
-				fprintf(stderr, "File open failed\n");
-				exit(-1);
-			}
-			
-			int c;
-			short int themax = 0, themin = 255;
-			data.resize(NZ);
-			for (int k = 0; k<NZ; k++) {
-				data[k].resize(NY);
-				for (int j = 0; j<NY; j++) {
-					data[k][j].resize(NX);
-					for (int i = 0; i<NX; i++) {
-						
-						if ((c = fgetc(fptr)) == EOF) {
-							fprintf(stderr, "Unexpected end of file\n");
-							exit(-1);
-						}
-						data[k][j][i] = c;
-
-						if (c > themax)
-							themax = c;
-						if (c < themin)
-							themin = c;
-					}
-				}
-			}
-
-			fclose(fptr);
-			fprintf(stderr, "Volumetric data range: %d -> %d\n", themin, themax);
-
-		}
+GLfloat approximateSA;
+GLfloat approximateVol;
 
 
-		GLfloat operator()(vec3 point) {
-			
-			int z = NZ/2+(int)floor(point.z);
-			int y = NY/2+(int)floor(point.y);
-			int x = NX/2+(int)floor(point.x);
-
-			if (z<0 || y<0 || x<0 || z>NZ || y>NY || x>NX) {
-				//return -999.0f;
-			}
-			short int level = data[z][y][x];
-			return ((GLfloat) (isolevel - level));
-		}
-};
-Isosurface &mySurface = isoCube(7.0f);
 
 
-/********************************/
 
 
 // Lighting
@@ -277,13 +173,13 @@ void drawShape(SimplePolyhedra p, vec3 center) {
 	for (int i = 0; i < p._numverts; ++i) {
 
 
-		int edge = p._edges[i];
+		int edge = p.getEdge(i);
 
 		for (int j = 0; j < p._numverts; ++j) {
 			if (((1 << j) & edge) != 0) {
 
-				glVertex3fv(glm::value_ptr(p._vertices[i] + center));
-				glVertex3fv(glm::value_ptr(p._vertices[j] + center));
+				glVertex3fv(glm::value_ptr(p.getVertice(i) + center));
+				glVertex3fv(glm::value_ptr(p.getVertice(j) + center));
 
 
 			}
@@ -314,13 +210,30 @@ glm::vec3 interpolate(glm::vec3 p1, glm::vec3 p2, GLfloat valp1, GLfloat valp2) 
 	//return (p1+p2)/2.0f; //midpoint formula
 }
 
+
+GLfloat areaOfTriangle(vec3 A, vec3 B, vec3 C) {
+	//Implemented via Heron's formula
+
+	GLfloat lenAB = sqrt(dot(B - A, B - A));
+	GLfloat lenBC = sqrt(dot(C - B, C - B));
+	GLfloat lenCA = sqrt(dot(A - C, A - C));
+
+	GLfloat s = (lenAB + lenBC + lenCA)/2;
+
+	return sqrt(s*(s-lenAB)*(s-lenBC)*(s-lenCA));
+}
+
+GLfloat volTrianglebasedPyramid(vec3 A, vec3 B, vec3 C) {
+
+	return abs(dot(A, cross(B,C)))/6.0f;
+}
+
 void marchPolygon(SimplePolyhedra p, glm::vec3 center, Isosurface& isosurface) {
 	
-
 	int vertHash = 0; //This is an  integer to track the vertices contained in the isosurface
 	for (int i = 0; i < p._numverts; i++) {
 		//If vertex is within the isosurface
-		if (isosurface(p._vertices[i] + center) <= 0.0f) {
+		if (isosurface(p.getVertice(i) + center) <= 0.0f) {
 			vertHash = vertHash | 1 << i;
 		}
 	}
@@ -346,7 +259,7 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center, Isosurface& isosurface) {
 				if ((1 << vert) & hash) { //vert in hash
 					res = (1 << vert);
 					for (int e = 0; e < p._numverts; ++e) { //for each vert e in p
-						if ((1 << e) & p._edges[vert]) { //if the vert shares an edge with i
+						if ((1 << e) & p.getEdge(vert)) { //if the vert shares an edge with i
 							if ((1 << e) & hash) { //if the i-th vert is in the hash
 								res |= floodFill(p, e, (hash & ~(1 << vert)));
 							}
@@ -389,7 +302,7 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center, Isosurface& isosurface) {
 
 				for (int i = 0; i < p._numverts; i++) { //Iterate for each vertice contained under the plane
 					if ((*it & 1 << i) != 0) {
-						int edgeHash = ~*it & p._edges[i];
+						int edgeHash = ~*it & p.getEdge(i);
 						for (int e = 0; e < p._numverts; e++) {
 							//Check the edges with one vertice in and one vertice out in the cube
 							if (edgeHash >> e & 1) {
@@ -411,7 +324,7 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center, Isosurface& isosurface) {
 						for (int f = 0; f < p._numfaces; f++) {
 
 							int tf = (1 << crossedges[i].first | 1 << crossedges[i].second) | (1 << crossedges[j].first | 1 << crossedges[j].second);
-							if ((p._faces[f] | tf) == p._faces[f]) {
+							if ((p.getFace(f) | tf) == p.getFace(f)) {
 
 								//They are on the same face
 								triangle.push_back(make_pair(crossedges[i], crossedges[j]));
@@ -443,13 +356,13 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center, Isosurface& isosurface) {
 
 				glm::vec3 a, b;
 
-				a = p._vertices[crossedges.first.first] + center;
-				b = p._vertices[crossedges.first.second] + center;
+				a = p.getVertice(crossedges.first.first) + center;
+				b = p.getVertice(crossedges.first.second) + center;
 				centroid += interpolate(a, b, isosurface(a), isosurface(b));
 
 
-				a = p._vertices[crossedges.second.first] + center;
-				b = p._vertices[crossedges.second.second] + center;
+				a = p.getVertice(crossedges.second.first) + center;
+				b = p.getVertice(crossedges.second.second) + center;
 				centroid += interpolate(a, b, isosurface(a), isosurface(b));
 			}
 
@@ -460,41 +373,42 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center, Isosurface& isosurface) {
 
 				glm::vec3 a1, a2, b1, b2, v1, v2;
 
-				a1 = p._vertices[triangle.first.first] + center;
-				b1 = p._vertices[triangle.first.second] + center;
+				a1 = p.getVertice(triangle.first.first) + center;
+				b1 = p.getVertice(triangle.first.second) + center;
 				v1 = interpolate(a1, b1, isosurface(a1), isosurface(b1));
 
-				a2 = p._vertices[triangle.second.first] + center;
-				b2 = p._vertices[triangle.second.second] + center;
+				a2 = p.getVertice(triangle.second.first) + center;
+				b2 = p.getVertice(triangle.second.second) + center;
 				v2 = interpolate(a2, b2, isosurface(a2), isosurface(b2));
 			
 				g_buffers.vertices.push_back(centroid);
 				g_buffers.vertices.push_back(v1);
 				g_buffers.vertices.push_back(v2);
 				
+				//Area checks
+				GLfloat area = areaOfTriangle(centroid, v1, v2);
+				GLfloat volOfPyramid = volTrianglebasedPyramid(centroid, v1, v2);
+				
+				approximateSA += area;
+				approximateVol += volOfPyramid;
+
 				vec3 d1 = v1 - centroid;
 				vec3 d2 = v2 - centroid;
 
-				vec3 n = -1.0f * cross(v1, v2);
-
+				vec3 n = 1.0f * cross(d2, d1);
+				
 				g_buffers.normals.push_back(n);
 				g_buffers.normals.push_back(n);
 				g_buffers.normals.push_back(n);
 				
+				vec3 middle = (centroid + v1 + v2)/3.0f;
 
-
-				g_buffers.colours.push_back(glm::vec3(1.0f, 0.0f, 0.0f));
-				g_buffers.colours.push_back(glm::vec3(1.0f, 0.0f, 0.0f));
-				g_buffers.colours.push_back(glm::vec3(1.0f, 0.0f, 0.0f));
+				vec3 colour = vec3(1.0f, 1.0f, 0.0f);//(isosurface(middle)+128)/256.0f*glm::vec3(1.0f, 0.8f, 0.8f);
+				g_buffers.colours.push_back(colour);
+				g_buffers.colours.push_back(colour);
+				g_buffers.colours.push_back(colour);
+			
 				
-				
-				/*
-				glBegin(GL_TRIANGLES);
-				glVertex3fv(glm::value_ptr(centroid));
-				glVertex3fv(glm::value_ptr(v1));
-				glVertex3fv(glm::value_ptr(v2));
-				glEnd();
-				*/
 				++total_triangles;
 			}
 			++total_crossections;
@@ -506,34 +420,10 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center, Isosurface& isosurface) {
 			
 }
 
-void recursiveFaceOrientedSpherePacking(SimplePolyhedra p, vec3 pos, Isosurface& surface) {
 
-
-	//Using an decision block to make clear the course of actions
-	if (abs(pos.x) > 10.0f || abs(pos.y) > 10.0f || abs(pos.z) > 10.0f) {
-		//We are not going to render this position
-		return;
-	}
-	else if (processedPositions.find(pos) != processedPositions.end()){
-		//We have processed this position. No need to render.
-		return;
-	}
-	else {
-		marchPolygon(p, pos, surface);
-		processedPositions.insert(pos);
-		//drawShape(p, pos);
-
-		for (int i = 0; i < p._numdirectionvectors; ++i) {
-			recursiveFaceOrientedSpherePacking(p, pos + p._directionvectors[i],surface);
-			recursiveFaceOrientedSpherePacking(p, pos - p._directionvectors[i],surface);
-		}
-
-		++total_polyhedra;
-	}
-
-
-
-
+bool notInRenderBounds(vec3 pos, Isosurface& surface) {
+	//Will do for now
+	return (abs(pos.x) > 10.0f || abs(pos.y) > 10.0f || abs(pos.z) > 10.0f);
 }
 
 void recursiveMarch(SimplePolyhedra p, Isosurface& surface) {
@@ -542,8 +432,45 @@ void recursiveMarch(SimplePolyhedra p, Isosurface& surface) {
 	g_buffers.normals.clear();
 	g_buffers.colours.clear();
 
-	processedPositions = unordered_set<vec3>();	
-	recursiveFaceOrientedSpherePacking(p, vec3(0.0f, 0.0f, 0.0f),surface);
+	stack<vec3> polyhedraStack;
+	polyhedraStack.push(origin); //Push the center of the march into the stack
+	unordered_set<vec3> processedPositions; //closed positions
+	
+	while (!polyhedraStack.empty()) {
+		//Pop first position
+		vec3 pos = polyhedraStack.top();
+		polyhedraStack.pop();
+
+		if (notInRenderBounds(pos, surface)) {
+			//Way outside of isosurface and we don't need it
+
+		}
+		else if (processedPositions.find(pos) != processedPositions.end()) {
+			//We have seen the position before, no need to reprocess
+		}
+		else {
+			//New point!
+			
+			processedPositions.insert(pos);
+			marchPolygon(p, pos, surface);
+			
+			//drawShape(p, pos);
+			//cout << "--B--" << endl;
+			for (int i = 0; i < p._numdirectionvectors; ++i) {
+				
+				polyhedraStack.push(pos + p.getDirectionVector(i));
+			//	cout << (pos + p.getDirectionVector(i)).x << " " << (pos + p.getDirectionVector(i)).y << " " << (pos + p.getDirectionVector(i)).z << endl;
+				polyhedraStack.push(pos - p.getDirectionVector(i));
+			//	cout << (pos - p.getDirectionVector(i)).x << " " << (pos - p.getDirectionVector(i)).y << " " << (pos - p.getDirectionVector(i)).z << endl;
+			}
+			//cout << "--E--" << endl;
+			++total_polyhedra;
+
+		}
+
+		
+
+	}
 
 	//After we have recieved our vertices we will process them in the buffers
 
@@ -592,7 +519,7 @@ void display(void) {
 	glUniformMatrix4fv(g_tfm.locM, 1, GL_FALSE, glm::value_ptr(Model));
 
 	//Taken from A3 from CSI4130 WINTER2016
-	LightSource light = g_lightArray.get(g_cLight);
+	/*LightSource light = g_lightArray.get(g_cLight);
 	std::ostringstream os;
 	os << "lightPosition[" << g_cLight << "]";
 	std::string varName = os.str();
@@ -603,20 +530,35 @@ void display(void) {
 			20.0f, // * static_cast<GLfloat>( !light.d_pointLight ), 
 			static_cast<GLfloat>(light.d_pointLight));
 	glProgramUniform4fv(g_program, locLightPos, 1, glm::value_ptr(lightPos));
-
+	*/
 
 	total_triangles = 0;
 	total_crossections = 0;
 	total_polyhedra = 0;
 	
-	recursiveMarch(g_poly, mySurface);
+	approximateSA = 0.0f;
+	approximateVol = 0.0f;
+	
+	
+	recursiveMarch(g_poly, g_mySurface);
+	//glutSolidSphere(6.0f,20,20);
 
 	
+	
+	cout << "Isosurface: " << endl;
+	cout << "\t" << g_mySurface.label() << endl;
+	cout << "\t Exact Surface Area: " << g_mySurface.surfacearea() << endl;
+	cout << "\t Exact Volume: " << g_mySurface.volume() << endl;
 	cout << "Counts: " << endl;
 	cout << "\t Number of polyhedra: " << total_polyhedra << endl;
 	cout << "\t Number of crosssections: " << total_crossections << endl;
 	cout << "\t Number of triangles: " << total_triangles << endl;
-	
+	cout << "Errors: " << endl;
+	cout << "\t Approximate Surface Area: " << approximateSA << endl;
+	cout << "\t Approximate Volume: " << approximateVol << endl;
+	cout << "\t Standard SA Error: " << abs(g_mySurface.surfacearea() - approximateSA) << endl;
+	cout << "\t Standard Vol Error: " << abs(g_mySurface.volume() - approximateVol) << endl;
+
 	// swap buffers
 	glutSwapBuffers();
 }
@@ -646,6 +588,16 @@ void keyboardFunc(unsigned char _key, int _x, int _y) {
 
 		// Reset camera to be on z axis looking at origin
 		g_camera = Camera();
+		break;
+	case 'p':
+	case 'P':
+		threshold++;
+		g_mySurface = isoMRI(threshold);
+		break;
+	case 'O':
+	case 'o':
+		threshold--;
+		g_mySurface = isoMRI(threshold);
 		break;
 	default:
 
@@ -808,7 +760,7 @@ void init(void) {
 	//Just one light source
 	g_lightArray.append(LightSource());
 	g_lightArray.setLights(g_program);
-	
+	g_lightArray.setPositions(g_program);
 	// set the projection matrix with a uniform
 	glm::mat4 Projection = glm::ortho(-g_winSize.d_width / 2.0f, g_winSize.d_width / 2.0f,
 		-g_winSize.d_height / 2.0f, g_winSize.d_height / 2.0f);

@@ -82,17 +82,17 @@ struct LightSource {
   glm::vec4 d_position;
 
   // default ctor
-  LightSource() : d_ambient( 0.05f, 0.05f, 0.05f, 1.0f ), 
+  LightSource() : d_ambient( 0.15f, 0.15f, 0.15f, 1.0f ), 
     d_diffuse( 1.0f, 1.0f, 1.0f, 1.0f ),
     d_specular( 1.0f, 1.0f, 1.0f, 1.0f ), 
-    d_pointLight( true ),
+    d_pointLight( false ),
     d_spot_direction( 0.0f, 0.0f, -1.0f ),
     d_spot_exponent(0),
     d_spot_cutoff(180.0f),
-    d_constant_attenuation(1.0f),
+    d_constant_attenuation(0.75f),
     d_linear_attenuation(0.0f),
     d_quadratic_attenuation(0.0f),
-    d_position( -8.0f, -8.0f, 8.0f, 0.0f ) {}
+    d_position( 0.0f, 15.0f, 0.0f, 0.0f ) {}
 };
 
 

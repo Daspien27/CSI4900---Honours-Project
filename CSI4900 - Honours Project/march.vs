@@ -26,16 +26,19 @@ void main() {
 
   // light vector in camera coordinates
   // Check for directional lighting	
+  
   if ( lightPosition[0].w > 0.0 ) {
     lightFrag = lightPosition[0].xyz - posVec.xyz;
   } else {
     lightFrag = lightPosition[0].xyz;
   }
   
+  //lightFrag = vec3(ViewMatrix * vec4(lightFrag,1));
+  
   // assume Modelview matrix has no non-uniform scaling or shearing 
-  normalFrag = vec3(ModelMatrix * ViewMatrix * normal);
-
-   posFrag = ModelMatrix * position;
+  normalFrag = vec3(ViewMatrix * ModelMatrix * normal);
+  //normalFrag = normal.xyz;
+  posFrag = ModelMatrix * position;
 
   gl_Position = ProjectionMatrix * ViewMatrix * posFrag;
   colourVertFrag = colour;

@@ -75,8 +75,8 @@ struct WindowSize {
 
 	WindowSize() : d_near(1.0f), d_far(400.0f),d_perspective(false),
 
-		d_widthPixel(512), d_width(40.0f),
-		d_heightPixel(512), d_height(40.0f)
+		d_widthPixel(512), d_width(20.0f),
+		d_heightPixel(512), d_height(20.0f)
 	{}
 };
 WindowSize g_winSize;
@@ -134,12 +134,12 @@ GLuint g_program;
 
 
 GLfloat scalingFactor =1.0f;
-GLint threshold = 128;
+GLint threshold = 80;
 
 glm::vec3 origin = vec3(0.0f, 0.0f, 0.0f); //Offsets the center of the marching polyhedra
 SimplePolyhedra g_poly = RhombicDodecahedron(scalingFactor);
 
-Isosurface& g_mySurface = isoMRI(threshold);
+Isosurface& g_mySurface = isoCube(7.0f);
 GLint g_renderStyle = GL_TRIANGLES; //USE GL_TRIANGLES or GL_LINE_LOOP
 
 
@@ -423,7 +423,7 @@ void marchPolygon(SimplePolyhedra p, glm::vec3 center, Isosurface& isosurface) {
 
 bool notInRenderBounds(vec3 pos, Isosurface& surface) {
 	//Will do for now
-	return (abs(pos.x) > 10.0f || abs(pos.y) > 10.0f || abs(pos.z) > 10.0f);
+	return (abs(pos.x) > 20.0f || abs(pos.y) > 20.0f || abs(pos.z) > 20.0f);
 }
 
 void recursiveMarch(SimplePolyhedra p, Isosurface& surface) {

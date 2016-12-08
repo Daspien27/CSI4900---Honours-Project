@@ -58,11 +58,12 @@ void main() {
   // colour
   //colour = attenuation * spot_attenuation * diffuse;
  
-  
   colour = diffuse;
+  //colour = diffuse + ambient;
   //colour = colourVertFrag;
-  colour += ambient;
+  //colour += ambient;
   //colour*=sin(posFrag);
+  //colour = colourVertFrag;
   //colour = dot(normalize(vec3(posFrag)),LVec)*colourVertFrag ;
   //colour=posFrag;
 }

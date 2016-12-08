@@ -92,7 +92,7 @@ struct LightSource {
     d_constant_attenuation(0.75f),
     d_linear_attenuation(0.0f),
     d_quadratic_attenuation(0.0f),
-    d_position( 0.0f, 15.0f, 0.0f, 0.0f ) {}
+    d_position( 0.0f, 15.0f, 15.0f, 0.0f ) {}
 };
 
 
